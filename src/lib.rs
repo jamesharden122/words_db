@@ -64,7 +64,7 @@ pub async fn start_mem_db_global_indexes(
     Ok(db)
 }
 
-async fn import_mem_db_global_ibdexes(backup_file: &str) -> surrealdb::Result<Surreal<Db>> {
+async fn import_mem_db_global_indexes(backup_file: &str) -> surrealdb::Result<Surreal<Db>> {
     let db = start_mem_db_no_table().await.expect("db should start");
     let time = std::time::Instant::now();
     db.import(backup_file).await.unwrap();
@@ -84,4 +84,30 @@ pub async fn start_duck_db_global_indexes(
     // Pass owned String to satisfy any 'static bounds in the callee.
     crsp::GlobalDailyIndex::duck_from_parquet(conn.clone(), parquet_path.to_string()).await?;
     Ok(conn)
+}
+
+// World indices (GlobalRets) helpers — names differ to avoid collision with price-index helpers.
+pub async fn start_duck_db_global_rets(
+    parquet_path: &str,
+    size: &str,
+    thread_count: i64,
+) -> Result<Arc<Connection>, crate::error::AppError> {
+    let conn = start_duck_db(size, thread_count).await?;
+    let conn = Arc::new(conn);
+    world_indices::GlobalRets::duck_from_parquet(conn.clone(), parquet_path.to_string()).await?;
+    Ok(conn)
+}
+
+pub async fn start_mem_db_world_indices() -> surrealdb::Result<Surreal<Db>> {
+    // Starts a fresh in-memory SurrealDB and applies base schema; does not ingest.
+    start_mem_db().await
+}
+
+pub async fn import_mem_db_world_indices(backup_file: &str) -> surrealdb::Result<Surreal<Db>> {
+    let db = start_mem_db_no_table().await.expect("db should start");
+    let time = std::time::Instant::now();
+    db.import(backup_file).await.unwrap();
+    let duration = time.elapsed();
+    println!("duration: {:?}", duration);
+    Ok(db)
 }

@@ -1,5 +1,6 @@
 pub mod compustat;
 pub mod crsp;
+pub mod world_indices;
 use crate::error::AppError;
 use duckdb::{params, Connection, OptionalExt};
 use futures::{StreamExt, TryStreamExt};
@@ -197,11 +198,11 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
     async fn upsert_from_parquet_one_file(
         conn: Arc<Connection>,
         parquet_path: impl AsRef<Path>,
-        id_col: Option<String>,
-        table: Option<String>,
+        _id_col: Option<String>,
+        table_opt: Option<String>,
     ) -> Result<usize, AppError> {
         let path = parquet_path.as_ref().to_string_lossy().to_string();
-        let table = Self::table().to_string();
+        let table_name = table_opt.unwrap_or_else(|| Self::table().to_string());
 
         tokio::task::block_in_place(move || {
             // Ensure table exists once
@@ -212,20 +213,10 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
             let total: i64 = conn.query_row(&count_sql, [], |r| r.get(0))?;
             println!("Row Count {}", total);
             // Build one-shot UPSERT SQL
-            let sql = if let Some(col) = id_col {
-                // Known id column
-                format!(
-                    "INSERT INTO {} (id)
-                     SELECT * FROM read_parquet('{}')",
-                    table, esc_path
-                )
-            } else {
-                // Deterministic id from row content
-                format!(
-                    "CREATE  OR REPLACE TABLE {} AS SELECT * FROM read_parquet('{}');",
-                    table, esc_path
-                )
-            };
+            let sql = format!(
+                "CREATE OR REPLACE TABLE {} AS SELECT * FROM read_parquet('{}');",
+                table_name, esc_path
+            );
             // Manual transaction to avoid &mut borrow
             conn.execute("BEGIN TRANSACTION", [])?;
             let res = (|| -> Result<(), AppError> {
