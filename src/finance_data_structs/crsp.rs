@@ -1,4 +1,4 @@
-use super::{AppError, DuckCrudModel, SurrealCrudModel};
+use super::{AppError, DuckCrudModel, SurrealCrudModel, ToPolars};
 use arrow_array::{Array, Date32Array, Float64Array, Int64Array, StringArray};
 use chrono::{Datelike, NaiveDate};
 use duckdb::Connection;
@@ -388,6 +388,29 @@ impl GlobalDailyIndex {
 
             Ok::<Vec<Row>, AppError>(out)
         })
+    }
+}
+
+impl ToPolars for GlobalDailyIndex {
+    fn schema() -> Schema {
+        Schema::from_iter([
+            Field::new("tic".into(), DataType::String),
+            Field::new("datadate".into(), DataType::Date),
+            Field::new("gvkeyx".into(), DataType::String),
+            Field::new("conm".into(), DataType::String),
+            Field::new("indextype".into(), DataType::String),
+            Field::new("indexid".into(), DataType::String),
+            Field::new("indexcat".into(), DataType::String),
+            Field::new("idxiddesc".into(), DataType::String),
+            Field::new("dvpsxd".into(), DataType::Float64),
+            Field::new("newnum".into(), DataType::Int32),
+            Field::new("oldnum".into(), DataType::Int32),
+            Field::new("prccd".into(), DataType::Float64),
+            Field::new("prccddiv".into(), DataType::Float64),
+            Field::new("prccddivn".into(), DataType::Float64),
+            Field::new("prchd".into(), DataType::Float64),
+            Field::new("prcld".into(), DataType::Float64),
+        ])
     }
 }
 

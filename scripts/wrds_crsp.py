@@ -4,8 +4,9 @@ import zipfile
 from requests import post as requests_post, get as requests_get
 from datetime import date 
 import csv
+import itertools
 WRDS_BASE = "https://wrds-api.wharton.upenn.edu/data/"
-WRDS_TOKEN = "TOKEN" # or set env var
+WRDS_TOKEN = "275be14d2410414f1de31176d40e7da3352ab114" # or set env var
 HEADERS = {
     "Authorization": f"Token {WRDS_TOKEN}",
     "Accept": "application/json",
@@ -39,7 +40,7 @@ def write_all_pages_to_zip(url, headers, params, zip_path, zip_member_csv_name, 
                 w.writeheader()
                 next_url, first = url, True
                 while next_url:
-                    resp = requests_get(next_url, headers=headers, params=params if first else None, timeout=1000)
+                    resp = requests_get(next_url, headers=headers, params=params if first else None, timeout=3000)
                     first = False
                     data = resp.json()
                     for row in data.get("results", []):
@@ -59,7 +60,7 @@ def crsp_daily_securities():
         filters.append(build_filters(date__gte=time_frame[i-1], date__lte=time_frame[i]))
     #filters.append(build_filters(date__gte="2024-01-01", date__lte="2024-12-31"))
     for flt in filters:
-        params = {'filters': flt, 'limit': 99999999}
+        params = {'filters': flt, 'limit': 100000}
         print(params)
         write_all_pages_to_zip(
             WRDS_BASE+"crsp.dsf/",
@@ -75,7 +76,7 @@ def csrp_indexes():
             "date", "ewretd", "ewretx", "spindx", "sprtrn", "totcnt",
             "totval", "usdcnt", "usdval",  "vwretd", "vwretx"
         ]
-        params = {'filters': build_filters(date__gte="1925-12-31", date__lte="2024-12-31"), 'limit': 99999999}
+        params = {'filters': build_filters(date__gte="1925-12-31", date__lte="2024-12-31"), 'limit': 100000}
         print(params)
         write_all_pages_to_zip(
             WRDS_BASE+"crsp.dsi/",
@@ -104,14 +105,24 @@ def compustat_global_indexes():
         "cheqv", "cheqvgross", "cheqvnet","div", "divd", "divdgross", "divdnet", "divgross", "divnet", "divrc", "divrcgross", "divrcnet", "divsp", "divspgross", "divspnet", "split", "splitf",
     ]
  
-    time_frame = [date(y, 1, 1).strftime("%Y-%m-%d") for y in range(1985, 2024)]
+    time_frame = [(date(y, 1, 1).strftime("%Y-%m-%d"),date(y, 6, 30).strftime("%Y-%m-%d")) for y in range(2016, 2024)]
+    time_frame = list(itertools.chain.from_iterable(time_frame)) 
     filters = []
-    filters.append(build_filters(datadate__gte=date(1984, 1, 2).strftime("%Y-%m-%d"), datadate__lte=date(1985, 1, 1).strftime("%Y-%m-%d")))
-    for i in range(1,len(time_frame)):
-        filters.append(build_filters(datadate__gte=time_frame[i-1], datadate__lte=time_frame[i]))
-    filters.append(build_filters(datadate__gte=date(2024, 1, 2).strftime("%Y-%m-%d"), datadate__lte=date(2025, 11, 2).strftime("%Y-%m-%d")))
+    #filters.append(build_filters(datadate__gte=date(2015, 6, 30).strftime("%Y-%m-%d"), datadate__lte=date(2016, 1, 1).strftime("%Y-%m-%d")))
+    #filters.append(build_filters(datadate__gte=date(1984, 1, 2).strftime("%Y-%m-%d"), datadate__lte=date(1985, 1, 1).strftime("%Y-%m-%d")))
+    #for i in range(1,len(time_frame)):
+    #    filters.append(build_filters(datadate__gte=time_frame[i-1], datadate__lte=time_frame[i]))
+    filters.append(build_filters(datadate__gte=date(2024, 1, 1).strftime("%Y-%m-%d"), datadate__lte=date(2024, 3,30).strftime("%Y-%m-%d")))
+    filters.append(build_filters(datadate__gte=date(2024, 3, 30).strftime("%Y-%m-%d"), datadate__lte=date(2024, 6,30).strftime("%Y-%m-%d")))
+    filters.append(build_filters(datadate__gte=date(2024, 6, 30).strftime("%Y-%m-%d"), datadate__lte=date(2024,9,15).strftime("%Y-%m-%d")))
+    filters.append(build_filters(datadate__gte=date(2024, 9, 15).strftime("%Y-%m-%d"), datadate__lte=date(2024,12,31).strftime("%Y-%m-%d")))
+    filters.append(build_filters(datadate__gte=date(2024, 12, 31).strftime("%Y-%m-%d"), datadate__lte=date(2025,3,15).strftime("%Y-%m-%d")))
+    filters.append(build_filters(datadate__gte=date(2025, 3, 15).strftime("%Y-%m-%d"), datadate__lte=date(2025,6,30).strftime("%Y-%m-%d")))
+    filters.append(build_filters(datadate__gte=date(2025, 6, 30).strftime("%Y-%m-%d"), datadate__lte=date(2025,8,30).strftime("%Y-%m-%d")))
+    filters.append(build_filters(datadate__gte=date(2025, 8, 30).strftime("%Y-%m-%d")))
+
     for flt in filters:
-        params = {'filters': flt, 'limit': 99999999}
+        params = {'filters': flt, 'limit': 100000}
         print(params)
         write_all_pages_to_zip(
             WRDS_BASE+"comp.g_secd/",

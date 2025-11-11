@@ -1,16 +1,45 @@
 pub mod compustat;
 pub mod crsp;
 pub mod world_indices;
+pub mod usindexes;
 use crate::error::AppError;
 use duckdb::{params, Connection, OptionalExt};
 use futures::{StreamExt, TryStreamExt};
 use itertools::Itertools; // <-- brings .chunks() into scope
+use polars::frame::row::Row;
+use polars::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{path::Path, sync::Arc};
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 use tokio::task;
 use uuid::Uuid;
+
+/// Trait: provides a schema and helpers to build a DataFrame from `polars::Row`s.
+pub trait ToPolars {
+    /// Schema describing the target DataFrame.
+    fn schema() -> Schema;
+
+    /// Convert a slice of rows into a DataFrame using the trait’s schema.
+    fn df_from_rows(rows: &[Row]) -> PolarsResult<DataFrame> {
+        DataFrame::from_rows_and_schema(rows, &Self::schema())
+    }
+
+    /// Variant that accepts an iterator over rows (useful if you stream/build rows lazily).
+    fn df_from_rows_iter<'a, I>(rows_iter: I) -> PolarsResult<DataFrame>
+    where
+        I: Iterator<Item = &'a Row<'a>>,
+    {
+        // Collect into a Vec to avoid relying on `from_rows_iter_and_schema` availability.
+        let rows: Vec<Row> = rows_iter.cloned().collect();
+        DataFrame::from_rows_and_schema(&rows, &Self::schema())
+    }
+
+    /// Produce an empty DataFrame with the right columns & dtypes.
+    fn empty_df() -> DataFrame {
+        DataFrame::empty_with_schema(&Self::schema())
+    }
+}
 // Define an enum that will handle different error types
 /// Generic CRUD trait for SurrealDB-backed data structures.
 pub trait SurrealCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {

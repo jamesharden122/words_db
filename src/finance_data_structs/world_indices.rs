@@ -1,4 +1,4 @@
-use super::{AppError, DuckCrudModel, SurrealCrudModel};
+use super::{AppError, DuckCrudModel, SurrealCrudModel, ToPolars};
 use arrow_array::Array;
 use arrow_array::{Date32Array, Float64Array};
 use chrono::{Datelike, NaiveDate};
@@ -565,5 +565,11 @@ impl GlobalRets {
     ) -> Result<usize, AppError> {
         db.use_ns(nsname).use_db(dbname).await?;
         GlobalRets::insert_vec_concurrent(&db, data_vec, batch_size, cores).await
+    }
+}
+
+impl ToPolars for GlobalRets {
+    fn schema() -> Schema {
+        Self::polars_schema()
     }
 }

@@ -1,5 +1,5 @@
 use words_db::finance_data_structs::*;
-use words_db::{start_mem_db, start_mem_db_no_table};
+use words_db::instantiatedb::surrealdbinst::{start_mem_db, start_mem_db_no_table};
 
 //RAYON_NUM_THREADS=14 POLARS_MAX_THREADS=14 cargo test start_mem_db_works --release -- --no-capture --test-threads=1
 #[tokio::test(flavor = "multi_thread", worker_threads = 15)]
