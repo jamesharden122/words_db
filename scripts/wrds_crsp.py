@@ -71,6 +71,30 @@ def crsp_daily_securities():
             fields=fields_dsf
         )
 
+def crsp_daily_securities():
+    fields_dsf = [
+        "permno", "permco", "cusip", "issuno", "date", "hexcd", "hsiccd",
+        "prc", "openprc", "bid", "ask", "bidlo", "askhi", "ret", "retx",
+        "vol", "shrout", "numtrd", "cfacpr", "cfacshr",
+    ]    
+    time_frame = [date(y, 1, 1).strftime("%Y-%m-%d") for y in range(1981, 2025)]
+    filters = []
+    for i in range(1,len(time_frame)):
+        filters.append(build_filters(date__gte=time_frame[i-1], date__lte=time_frame[i]))
+    #filters.append(build_filters(date__gte="2024-01-01", date__lte="2024-12-31"))
+    for flt in filters:
+        params = {'filters': flt, 'limit': 100000}
+        print(params)
+        write_all_pages_to_zip(
+            WRDS_BASE+"crsp.dsf/",
+            headers=HEADERS,
+            params=params,
+            zip_path="../../"+OUT_ROOT+"stkdlysecuritydata/"+flt+"_crsp_daily.zip",
+            zip_member_csv_name = flt+"_crsp_daily.csv",
+            fields=fields_dsf
+        )
+
+
 def csrp_indexes(): 
         field_indexes = [
             "date", "ewretd", "ewretx", "spindx", "sprtrn", "totcnt",
@@ -105,21 +129,12 @@ def compustat_global_indexes():
         "cheqv", "cheqvgross", "cheqvnet","div", "divd", "divdgross", "divdnet", "divgross", "divnet", "divrc", "divrcgross", "divrcnet", "divsp", "divspgross", "divspnet", "split", "splitf",
     ]
  
-    time_frame = [(date(y, 1, 1).strftime("%Y-%m-%d"),date(y, 6, 30).strftime("%Y-%m-%d")) for y in range(2016, 2024)]
+    time_frame = [(date(y, 1, 1).strftime("%Y-%m-%d"),date(y, 6, 30).strftime("%Y-%m-%d")) for y in range(1950, 2024)]
     time_frame = list(itertools.chain.from_iterable(time_frame)) 
     filters = []
-    #filters.append(build_filters(datadate__gte=date(2015, 6, 30).strftime("%Y-%m-%d"), datadate__lte=date(2016, 1, 1).strftime("%Y-%m-%d")))
-    #filters.append(build_filters(datadate__gte=date(1984, 1, 2).strftime("%Y-%m-%d"), datadate__lte=date(1985, 1, 1).strftime("%Y-%m-%d")))
-    #for i in range(1,len(time_frame)):
-    #    filters.append(build_filters(datadate__gte=time_frame[i-1], datadate__lte=time_frame[i]))
-    filters.append(build_filters(datadate__gte=date(2024, 1, 1).strftime("%Y-%m-%d"), datadate__lte=date(2024, 3,30).strftime("%Y-%m-%d")))
-    filters.append(build_filters(datadate__gte=date(2024, 3, 30).strftime("%Y-%m-%d"), datadate__lte=date(2024, 6,30).strftime("%Y-%m-%d")))
-    filters.append(build_filters(datadate__gte=date(2024, 6, 30).strftime("%Y-%m-%d"), datadate__lte=date(2024,9,15).strftime("%Y-%m-%d")))
-    filters.append(build_filters(datadate__gte=date(2024, 9, 15).strftime("%Y-%m-%d"), datadate__lte=date(2024,12,31).strftime("%Y-%m-%d")))
-    filters.append(build_filters(datadate__gte=date(2024, 12, 31).strftime("%Y-%m-%d"), datadate__lte=date(2025,3,15).strftime("%Y-%m-%d")))
-    filters.append(build_filters(datadate__gte=date(2025, 3, 15).strftime("%Y-%m-%d"), datadate__lte=date(2025,6,30).strftime("%Y-%m-%d")))
-    filters.append(build_filters(datadate__gte=date(2025, 6, 30).strftime("%Y-%m-%d"), datadate__lte=date(2025,8,30).strftime("%Y-%m-%d")))
-    filters.append(build_filters(datadate__gte=date(2025, 8, 30).strftime("%Y-%m-%d")))
+    for i in range(1,len(time_frame)):
+        filters.append(build_filters(datadate__gte=time_frame[i-1], datadate__lte=time_frame[i]))
+    filters.append(build_filters(datadate__gte=date(2024, 1, 1).strftime("%Y-%m-%d")))
 
     for flt in filters:
         params = {'filters': flt, 'limit': 100000}
@@ -129,15 +144,42 @@ def compustat_global_indexes():
             headers=HEADERS,
             params=params,
             zip_path="../../"+COMP_ROOT+"global_securities/"+flt+"_comp_global_daily.zip",
-            zip_member_csv_name = flt+"_comp_global_daily.csv",
+            zip_member_csv_name = flt+"_comp_global_monthly.csv",
+            fields=fields_g_secd
+        )
+ 
+
+def compustat_global_indexes_mthly(): 
+    fields_g_secd = [ 
+            "ajexm", "ajpm", "conm", "cshtrm", "curcddvm", "curcdm",
+            "datadate",  "dvpspm","dvpspm_fn",  "dvpsxm", "dvpsxm_fn",
+            "epf", "exchg", "fic", "gvkey", "iid", "isalrt", "isin", 
+            "loc", "prccm", "prchm", "prclm", "secstat", "sedol", "tpci"
+           ]
+ 
+    time_frame = [(date(y, 1, 1).strftime("%Y-%m-%d"),date(y+5, 1,1).strftime("%Y-%m-%d")) for y in range(2005, 2024,5)]
+    time_frame = list(itertools.chain.from_iterable(time_frame)) 
+    filters = []
+    for i in range(1,len(time_frame)):
+        filters.append(build_filters(datadate__gte=time_frame[i-1], datadate__lte=time_frame[i]))
+    filters.append(build_filters(datadate__gte=date(2024, 1, 1).strftime("%Y-%m-%d")))
+
+    for flt in filters:
+        params = {'filters': flt, 'limit': 100000}
+        print(params)
+        write_all_pages_to_zip(
+            WRDS_BASE+"comp.g_secm/",
+            headers=HEADERS,
+            params=params,
+            zip_path="../../"+COMP_ROOT+"global_securities/monthly/"+flt+"_comp_global_monthly.zip",
+            zip_member_csv_name = flt+"_comp_global_monthly.csv",
             fields=fields_g_secd
         )
  
 
 
-
 if __name__ == "__main__":
     #_ = crsp_daily_securities()
     #_ = csrp_indexes()
-    _ = compustat_global_indexes()
+    _ = compustat_global_indexes_mthly()
     

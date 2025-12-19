@@ -43,12 +43,16 @@ pub enum DbType {
     GlobalDailyIndex,
     GlobalRets,
     UsMarket,
+    GlobalEquities,
+    GlobalEquitiesMonthly,
+    EquityFactorsMonthly,
+    WdiWide,
 }
 
 impl DbType {
     pub async fn ingest(
         self,
-        conn: Arc<Connection>,
+        conn: std::sync::Arc<std::sync::Mutex<Connection>>,
         parquet_path: &str,
     ) -> Result<usize, crate::error::AppError> {
         match self {
@@ -60,6 +64,32 @@ impl DbType {
             }
             DbType::UsMarket => {
                 usindexes::UsMarketIndex::duck_from_parquet(conn, parquet_path.to_string()).await
+            }
+            DbType::GlobalEquities => {
+                global_equities::GlobalEquities::duck_from_parquet(conn, parquet_path.to_string())
+                    .await
+            }
+            DbType::GlobalEquitiesMonthly => {
+                global_equities::GlobalEquitiesMonthly::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::WdiWide => {
+                crate::finance_data_structs::wdi::WdiWide::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                    None,
+                )
+                .await
+            }
+            DbType::EquityFactorsMonthly => {
+                crate::finance_data_structs::equity_factors::EquityFactorsMonthly::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
             }
         }
     }

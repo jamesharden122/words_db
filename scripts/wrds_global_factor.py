@@ -4,6 +4,7 @@ import zipfile
 from requests import post as requests_post, get as requests_get
 from datetime import date 
 import csv
+import itertools
 WRDS_BASE = "https://wrds-api.wharton.upenn.edu/data/"
 WRDS_TOKEN = "275be14d2410414f1de31176d40e7da3352ab114" # or set env var
 HEADERS = {
@@ -14,6 +15,7 @@ HEADERS = {
 
 OUT_ROOT   = "data/zip/crsp_ciz_sample/"
 COMP_ROOT   = "data/zip/compustat/"
+FACT_ROOT = "data/zip/factors/global/monthly/"
 YEAR_FROM  = 1925
 YEAR_TO    = date.today().year
 
@@ -40,6 +42,7 @@ def write_all_pages_to_zip(url, headers, params, zip_path, zip_member_csv_name, 
                 next_url, first = url, True
                 while next_url:
                     resp = requests_get(next_url, headers=headers, params=params if first else None, timeout=1500)
+                    print(resp)
                     first = False
                     data = resp.json()
                     for row in data.get("results", []):
@@ -226,31 +229,35 @@ def compustat_global_factors():
     "txp_gr1a", "txp_gr3a",
     "xido_at",
     "z_score",
+    "zero_trades_126d",
+    "zero_trades_21d",
+    "zero_trades_252d"
 ]
  
-    time_frame = [date(y, 1, 1).strftime("%Y-%m-%d") for y in range(1996, 2024)]
+    time_frame = [(date(y, 1, 1).strftime("%Y-%m-%d"),date(y+5, 1, 1).strftime("%Y-%m-%d")) for y in range(1926, 2024, 5)]   
+    time_frame = list(itertools.chain.from_iterable(time_frame)) 
     filters = []
+    #filters.append(build_filters(datadate__gte=date(2015, 6, 30).strftime("%Y-%m-%d"), datadate__lte=date(2016, 1, 1).strftime("%Y-%m-%d")))
     #filters.append(build_filters(datadate__gte=date(1984, 1, 2).strftime("%Y-%m-%d"), datadate__lte=date(1985, 1, 1).strftime("%Y-%m-%d")))
     for i in range(1,len(time_frame)):
         filters.append(build_filters(datadate__gte=time_frame[i-1], datadate__lte=time_frame[i]))
-    #filters.append(build_filters(datadate__gte=date(2024, 1, 2).strftime("%Y-%m-%d"), datadate__lte=date(2025, 11, 2).strftime("%Y-%m-%d")))
+    filters.append(build_filters(datadate__gte=date(2024, 1, 1).strftime("%Y-%m-%d")))
+
     for flt in filters:
         params = {'filters': flt, 'limit': 99999999}
         print(params)
         write_all_pages_to_zip(
-            WRDS_BASE+"comp.g_secd/",
+            WRDS_BASE+"contrib.global_factor/",
             headers=HEADERS,
             params=params,
-            zip_path="../../"+COMP_ROOT+"global_securities/"+flt+"_comp_global_daily.zip",
-            zip_member_csv_name = flt+"_comp_global_daily.csv",
-            fields=fields_global_factors_daily 
+            zip_path="../../"+FACT_ROOT+flt+"_factor_global_monthly.zip",
+            zip_member_csv_name = flt+"_factor_global_monthly.csv",
+            fields=fields_global_factors_daily
             )
  
 
 
 
 if __name__ == "__main__":
-    #_ = crsp_daily_securities()
-    #_ = csrp_indexes()
-    _ = compustat_global_indexes()
+    _ = compustat_global_factors()
     

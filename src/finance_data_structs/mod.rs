@@ -1,7 +1,10 @@
 pub mod compustat;
 pub mod crsp;
-pub mod world_indices;
+pub mod equity_factors;
+pub mod global_equities;
 pub mod usindexes;
+pub mod wdi;
+pub mod world_indices;
 use crate::error::AppError;
 use duckdb::{params, Connection, OptionalExt};
 use futures::{StreamExt, TryStreamExt};
@@ -9,7 +12,7 @@ use itertools::Itertools; // <-- brings .chunks() into scope
 use polars::frame::row::Row;
 use polars::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::{Arc, Mutex}};
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 use tokio::task;
@@ -225,7 +228,7 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
     /// If `None`, derives a stable id as `md5(to_json(struct_pack(*)))`.
     /// Returns the total rows processed from the file (inserted + updated).
     async fn upsert_from_parquet_one_file(
-        conn: Arc<Connection>,
+        conn: Arc<Mutex<Connection>>,
         parquet_path: impl AsRef<Path>,
         _id_col: Option<String>,
         table_opt: Option<String>,
@@ -233,13 +236,14 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
         let path = parquet_path.as_ref().to_string_lossy().to_string();
         let table_name = table_opt.unwrap_or_else(|| Self::table().to_string());
 
-        tokio::task::block_in_place(move || {
+        tokio::task::spawn_blocking(move || {
             // Ensure table exists once
-            Self::ensure_table(&conn)?;
+            let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
+            Self::ensure_table(&conn_guard)?;
             // Count rows in the file (inline path so DuckDB can infer schema at prepare time)
             let esc_path = path.replace('\'', "''");
             let count_sql = format!("SELECT count(*) FROM read_parquet('{}')", esc_path);
-            let total: i64 = conn.query_row(&count_sql, [], |r| r.get(0))?;
+            let total: i64 = conn_guard.query_row(&count_sql, [], |r| r.get(0))?;
             println!("Row Count {}", total);
             // Build one-shot UPSERT SQL
             let sql = format!(
@@ -247,21 +251,22 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
                 table_name, esc_path
             );
             // Manual transaction to avoid &mut borrow
-            conn.execute("BEGIN TRANSACTION", [])?;
+            conn_guard.execute("BEGIN TRANSACTION", [])?;
             let res = (|| -> Result<(), AppError> {
-                conn.execute(&sql, [])?;
+                conn_guard.execute(&sql, [])?;
                 Ok(())
             })();
             match res {
                 Ok(()) => {
-                    conn.execute("COMMIT", [])?;
+                    conn_guard.execute("COMMIT", [])?;
                     Ok::<usize, AppError>(total as usize)
                 }
                 Err(e) => {
-                    let _ = conn.execute("ROLLBACK", []);
+                    let _ = conn_guard.execute("ROLLBACK", []);
                     Err(e)
                 }
             }
         })
+        .await?
     }
 }

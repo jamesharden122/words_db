@@ -1,7 +1,6 @@
 use super::{AppError, DuckCrudModel, SurrealCrudModel};
 use chrono::NaiveDate;
 use csv::ReaderBuilder;
-use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fs::File;

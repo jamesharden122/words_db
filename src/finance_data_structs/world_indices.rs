@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 
@@ -411,7 +411,7 @@ impl GlobalRets {
     /// Ingest a Parquet file of world index returns into DuckDB via table create/replace.
     /// Returns total rows processed from the Parquet file.
     pub async fn duck_from_parquet(
-        conn: Arc<Connection>,
+        conn: Arc<Mutex<Connection>>,
         parquet_path: impl AsRef<Path>,
     ) -> Result<usize, AppError> {
         <Self as DuckCrudModel>::upsert_from_parquet_one_file(
@@ -426,10 +426,10 @@ impl GlobalRets {
     /// Read rows for a given date range and return them as Polars rows.
     /// Follows the `to_row` pattern: build GlobalRets per row then convert.
     pub async fn read_range<'a>(
-        conn: Arc<Connection>,
+        conn: Arc<Mutex<Connection>>,
         date_range: (NaiveDate, NaiveDate),
     ) -> Result<Vec<Row<'a>>, AppError> {
-        tokio::task::block_in_place(move || {
+        tokio::task::spawn_blocking(move || {
             let sql = format!(
                 "SELECT * REPLACE (CAST(date AS DATE) AS date) \
                  FROM {} \
@@ -440,34 +440,37 @@ impl GlobalRets {
                 date_range.1.to_string()
             );
 
-            let mut reader = conn.prepare(sql.as_str())?;
-            let mut reader = reader.query_arrow([])?; // Arrow RecordBatchReader
+            let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
+            let mut stmt = conn_guard.prepare(sql.as_str())?;
+            let mut reader = stmt.query_arrow([])?; // Arrow RecordBatchReader
             let mut out: Vec<Row<'static>> = Vec::new();
 
             while let Some(batch) = reader.next() {
                 let schema = batch.schema();
                 let date_idx = schema.index_of("date").unwrap();
-                let date32 = batch
+                let date32_opt = batch
                     .column(date_idx)
                     .as_any()
-                    .downcast_ref::<Date32Array>()
-                    .unwrap();
+                    .downcast_ref::<Date32Array>();
                 let mut get_f64 = |name: &str, i: usize| -> Option<f64> {
                     let idx = schema.index_of(name).unwrap();
-                    let arr = batch
-                        .column(idx)
-                        .as_any()
-                        .downcast_ref::<Float64Array>()
-                        .unwrap();
-                    if arr.is_null(i) {
-                        None
+                    let col = batch.column(idx);
+                    if let Some(arr) = col.as_any().downcast_ref::<Float64Array>() {
+                        if arr.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
                     } else {
-                        Some(arr.value(i))
+                        // Non-F64 or Null array for this column: treat as missing
+                        None
                     }
                 };
 
                 for i in 0..batch.num_rows() {
-                    let nd = date32.value_as_date(i).unwrap();
+                    let nd = date32_opt
+                        .and_then(|d| d.value_as_date(i))
+                        .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
                     let temp = Self {
                         date: nd,
                         aus_portret: get_f64("aus_portret", i),
@@ -553,6 +556,7 @@ impl GlobalRets {
 
             Ok::<Vec<Row>, AppError>(out)
         })
+        .await?
     }
 
     pub async fn create_rets_result(

@@ -37,19 +37,27 @@ def write_all_pages_to_csv(url, headers, params, out_path,fields):
             next_url = data.get("next")
 
 
-returns = False
-constituents = True
+returns = True
+constituents = False
+monthly = True
+if monthly:
+    fields_returns = ["fic", "date", "mportret", "mportretx", "n", "country", "currency"]
+    endpoint = "https://wrds-api.wharton.upenn.edu/data/wrdsapps.mwcountryreturns/"
+    begin_path = "data/raw_files/csv/country_indexes/monthly/"
+else: 
+    fields_returns = ["fic", "date", "portret", "portretx", "n", "country", "currency"]
+    endpoint = "https://wrds-api.wharton.upenn.edu/data/wrdsapps.dwcountryreturns/"
+    begin_path = "data/raw_files/csv/country_indexes/daily/"
 
 if returns:
-    fields_returns = ["fic", "date", "portret", "portretx", "n", "country", "currency"]
     for ctry in fics_iso3:
         filters = "(date__gte=1980-01-01&date__lte=2025-11-01&"+"fic="+ctry+")"
         params = {'filters': filters, 'limit': 99999999}
         write_all_pages_to_csv(
-            "https://wrds-api.wharton.upenn.edu/data/wrdsapps.dwcountryreturns/",
+            endpoint,
             headers=headers,
             params=params,
-            out_path="data/raw_files/country_indexes/"+ctry+"_country_returns.csv",
+            out_path=begin_path+ctry+"_country_returns.csv",
             fields=fields_returns
         )
 

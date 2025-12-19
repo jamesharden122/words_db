@@ -8,7 +8,7 @@ use polars::prelude::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 
@@ -194,7 +194,7 @@ impl GlobalDailyIndex {
     /// Ingest a Parquet file of global indexes into DuckDB JSON-doc table via upsert.
     /// Returns total rows processed from the Parquet file.
     pub async fn duck_from_parquet(
-        conn: Arc<Connection>,
+        conn: Arc<Mutex<Connection>>,
         parquet_path: impl AsRef<Path>,
     ) -> Result<usize, AppError> {
         // Use stable content hash as id; if you want a composed id
@@ -222,12 +222,12 @@ impl GlobalDailyIndex {
 
     /// Read a record by id.
     pub async fn read_gdi_batch<'a>(
-        conn: Arc<Connection>,
+        conn: Arc<Mutex<Connection>>,
         filter_col: String,
         filter_vals: Vec<String>,
         date_range: (NaiveDate, NaiveDate),
     ) -> Result<Vec<Row<'a>>, AppError> {
-        tokio::task::block_in_place(move || {
+        tokio::task::spawn_blocking(move || {
             if filter_vals.is_empty() {
                 return Ok(Vec::new());
             }
@@ -268,8 +268,9 @@ impl GlobalDailyIndex {
                 date_range.1.to_string()
             );
 
-            let mut reader = conn.prepare(sql.as_str())?;
-            let mut reader = reader.query_arrow([])?; // Arrow RecordBatchReader
+            let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
+            let mut stmt = conn_guard.prepare(sql.as_str())?;
+            let mut reader = stmt.query_arrow([])?; // Arrow RecordBatchReader
             let mut out: Vec<Row<'static>> = Vec::new();
             while let Some(batch) = reader.next() {
                 // ---- Downcast columns once per batch ----
@@ -388,6 +389,7 @@ impl GlobalDailyIndex {
 
             Ok::<Vec<Row>, AppError>(out)
         })
+        .await?
     }
 }
 
