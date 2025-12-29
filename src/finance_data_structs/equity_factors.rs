@@ -4,6 +4,7 @@ use chrono::{Datelike, NaiveDate};
 use duckdb::Connection;
 use polars::frame::row::Row;
 use polars::prelude::*;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -1460,44 +1461,47 @@ impl EquityFactorsMonthly {
                 let beta_252d = f("beta_252d");
                 let rvol_252d = f("rvol_252d");
                 let rvolhl_21d = f("rvolhl_21d");
-                for row_i in 0..batch.num_rows() {
-                    // Helper closures to get Option<T>
-                    let gs = |arr: &StringArray| -> Option<String> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i).to_string())
-                        }
-                    };
-                    let gi32 = |arr: &Int64Array| -> Option<i32> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i) as i32)
-                        }
-                    };
-                    let gi64 = |arr: &Int64Array| -> Option<i64> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i))
-                        }
-                    };
-                    let gf = |arr: &Float64Array| -> Option<f64> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i))
-                        }
-                    };
-                    let gd = |arr: &Date32Array| -> Option<NaiveDate> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            arr.value_as_date(row_i)
-                        }
-                    };
-                    let temp = Self {
+                let rows: Vec<Row<'static>> = (0..batch.num_rows())
+                    .into_par_iter()
+                    .map(|row_i| {
+                        // Helper closures to get Option<T>
+                        let gs = |arr: &StringArray| -> Option<String> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i).to_string())
+                            }
+                        };
+                        let gi32 = |arr: &Int64Array| -> Option<i32> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i) as i32)
+                            }
+                        };
+                        let gi64 = |arr: &Int64Array| -> Option<i64> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i))
+                            }
+                        };
+                        let gf = |arr: &Float64Array| -> Option<f64> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i))
+                            }
+                        };
+                        let gd = |arr: &Date32Array| -> Option<NaiveDate> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                arr.value_as_date(row_i)
+                            }
+                        };
+
+                        let temp = Self {
                         gvkey: gi32(gvkey),
                         iid: gs(iid),
                         permno: gi32(permno),
@@ -1942,16 +1946,17 @@ impl EquityFactorsMonthly {
                         rvol_252d: gf(rvol_252d),
                         rvolhl_21d: gf(rvolhl_21d),
                     };
-                    out.push(temp.to_row());
-                }
+                        let row: Row<'static> = temp.to_row();
+                        row
+                    })
+                    .collect();
+                out.extend(rows);
             }
             Ok::<Vec<Row>, AppError>(out)
         })
         .await?
     }
-}
 
-impl EquityFactorsMonthly {
     fn date_to_any(d: Option<NaiveDate>) -> AnyValue<'static> {
         match d {
             Some(nd) => {

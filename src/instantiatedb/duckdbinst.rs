@@ -46,6 +46,7 @@ pub enum DbType {
     GlobalEquities,
     GlobalEquitiesMonthly,
     EquityFactorsMonthly,
+    GlobalFundQtrly,
     WdiWide,
 }
 
@@ -86,6 +87,13 @@ impl DbType {
             }
             DbType::EquityFactorsMonthly => {
                 crate::finance_data_structs::equity_factors::EquityFactorsMonthly::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::GlobalFundQtrly => {
+                crate::finance_data_structs::global_fundamentals_compustat::GlobalFundQtrly::duck_from_parquet(
                     conn,
                     parquet_path.to_string(),
                 )

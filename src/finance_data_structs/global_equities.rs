@@ -4,6 +4,7 @@ use chrono::{Datelike, NaiveDate};
 use duckdb::Connection;
 use polars::frame::row::Row;
 use polars::prelude::*;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -364,45 +365,47 @@ impl GlobalEquities {
                 let split = f("split");
                 let splitf = f("splitf");
 
-                for row_i in 0..batch.num_rows() {
-                    // Helper closures to get Option<T>
-                    let gs = |arr: &StringArray| -> Option<String> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i).to_string())
-                        }
-                    };
-                    let gi32 = |arr: &Int64Array| -> Option<i32> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i) as i32)
-                        }
-                    };
-                    let gi64 = |arr: &Int64Array| -> Option<i64> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i))
-                        }
-                    };
-                    let gf = |arr: &Float64Array| -> Option<f64> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i))
-                        }
-                    };
-                    let gd = |arr: &Date32Array| -> Option<NaiveDate> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            arr.value_as_date(row_i)
-                        }
-                    };
+                let rows: Vec<Row<'static>> = (0..batch.num_rows())
+                    .into_par_iter()
+                    .map(|row_i| {
+                        // Helper closures to get Option<T>
+                        let gs = |arr: &StringArray| -> Option<String> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i).to_string())
+                            }
+                        };
+                        let gi32 = |arr: &Int64Array| -> Option<i32> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i) as i32)
+                            }
+                        };
+                        let gi64 = |arr: &Int64Array| -> Option<i64> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i))
+                            }
+                        };
+                        let gf = |arr: &Float64Array| -> Option<f64> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i))
+                            }
+                        };
+                        let gd = |arr: &Date32Array| -> Option<NaiveDate> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                arr.value_as_date(row_i)
+                            }
+                        };
 
-                    let temp = Self {
+                        let temp = Self {
                         permno: gi32(permno),
                         permco: gi32(permco),
                         gvkey: gi32(gvkey),
@@ -477,8 +480,11 @@ impl GlobalEquities {
                         split: gf(split),
                         splitf: gf(splitf),
                     };
-                    out.push(temp.to_row());
-                }
+                        let row: Row<'static> = temp.to_row();
+                        row
+                    })
+                    .collect();
+                out.extend(rows);
             }
 
             Ok::<Vec<Row>, AppError>(out)
@@ -888,37 +894,39 @@ impl GlobalEquitiesMonthly {
                 let sedol = s("sedol");
                 let tpci = s("tpci");
 
-                for row_i in 0..batch.num_rows() {
-                    let gs = |arr: &StringArray| -> Option<String> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i).to_string())
-                        }
-                    };
-                    let gf = |arr: &Float64Array| -> Option<f64> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i))
-                        }
-                    };
-                    let gi32 = |arr: &Int64Array| -> Option<i32> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            Some(arr.value(row_i) as i32)
-                        }
-                    };
-                    let gd = |arr: &Date32Array| -> Option<NaiveDate> {
-                        if arr.is_null(row_i) {
-                            None
-                        } else {
-                            arr.value_as_date(row_i)
-                        }
-                    };
+                let rows: Vec<Row<'static>> = (0..batch.num_rows())
+                    .into_par_iter()
+                    .map(|row_i| {
+                        let gs = |arr: &StringArray| -> Option<String> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i).to_string())
+                            }
+                        };
+                        let gf = |arr: &Float64Array| -> Option<f64> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i))
+                            }
+                        };
+                        let gi32 = |arr: &Int64Array| -> Option<i32> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                Some(arr.value(row_i) as i32)
+                            }
+                        };
+                        let gd = |arr: &Date32Array| -> Option<NaiveDate> {
+                            if arr.is_null(row_i) {
+                                None
+                            } else {
+                                arr.value_as_date(row_i)
+                            }
+                        };
 
-                    let temp = Self {
+                        let temp = Self {
                         ajexm: gf(ajexm),
                         ajpm: gf(ajpm),
                         conm: gs(conm),
@@ -945,8 +953,11 @@ impl GlobalEquitiesMonthly {
                         sedol: gs(sedol),
                         tpci: gs(tpci),
                     };
-                    out.push(temp.to_row());
-                }
+                        let row: Row<'static> = temp.to_row();
+                        row
+                    })
+                    .collect();
+                out.extend(rows);
             }
 
             Ok::<Vec<Row>, AppError>(out)

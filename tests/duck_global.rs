@@ -17,6 +17,16 @@ const PARQUET_PATH: &str = "../data/raw_files/global_indexes_daily.parquet";
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 14)]
 async fn duck_ingest_global_indexes_from_parquet() {
+    let parquet_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(PARQUET_PATH);
+    if !parquet_path.exists() {
+        eprintln!(
+            "Global indexes parquet not found at {} — skipping test",
+            parquet_path.display()
+        );
+        return;
+    }
+    let parquet_path_str = parquet_path.to_string_lossy().to_string();
+
     let time = std::time::Instant::now();
     let conn = words_db::instantiatedb::duckdbinst::start_duck_db("4GB", 14)
         .await
@@ -25,7 +35,7 @@ async fn duck_ingest_global_indexes_from_parquet() {
     println!("Time Elapsed 1: {:?}", time.elapsed());
     let dbtype = DbType::GlobalDailyIndex;
     _ = dbtype
-        .ingest(conn.clone(), "4GB")
+        .ingest(conn.clone(), &parquet_path_str)
         .await
         .expect("duck bootstrap with parquet should work");
     {
@@ -89,6 +99,16 @@ const WORLD_RETS_PARQUET_PATH: &str =
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 14)]
 async fn duck_ingest_world_indices_from_parquet() {
+    let parquet_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(WORLD_RETS_PARQUET_PATH);
+    if !parquet_path.exists() {
+        eprintln!(
+            "World returns parquet not found at {} — skipping test",
+            parquet_path.display()
+        );
+        return;
+    }
+    let parquet_path_str = parquet_path.to_string_lossy().to_string();
+
     let time = std::time::Instant::now();
     let conn = words_db::instantiatedb::duckdbinst::start_duck_db("4GB", 14)
         .await
@@ -97,7 +117,7 @@ async fn duck_ingest_world_indices_from_parquet() {
     println!("[WORLD] Time Elapsed 1: {:?}", time.elapsed());
     let dbtype = DbType::GlobalRets;
     let _ = dbtype
-        .ingest(conn.clone(), "4GB")
+        .ingest(conn.clone(), &parquet_path_str)
         .await
         .expect("duck bootstrap with parquet should work");
     {
@@ -174,13 +194,23 @@ async fn duck_ingest_world_indices_from_parquet() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 14)]
 async fn duck_persist_and_reopen_from_file() {
+    let parquet_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(PARQUET_PATH);
+    if !parquet_path.exists() {
+        eprintln!(
+            "Global indexes parquet not found at {} — skipping test",
+            parquet_path.display()
+        );
+        return;
+    }
+    let parquet_path_str = parquet_path.to_string_lossy().to_string();
+
     // Start in-memory DB and ingest from Parquet
     let conn = words_db::instantiatedb::duckdbinst::start_duck_db("4GB", 14)
         .await
         .expect("duckdb in-memory start");
     let conn = Arc::new(Mutex::new(conn));
     let rows = DbType::GlobalDailyIndex
-        .ingest(conn.clone(), PARQUET_PATH)
+        .ingest(conn.clone(), &parquet_path_str)
         .await
         .expect("ingest from parquet");
     assert!(rows > 0, "expected >0 rows ingested, got {}", rows);

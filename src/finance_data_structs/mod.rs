@@ -1,6 +1,7 @@
 pub mod compustat;
 pub mod crsp;
 pub mod equity_factors;
+pub mod global_fundamentals_compustat;
 pub mod global_equities;
 pub mod usindexes;
 pub mod wdi;
@@ -15,7 +16,6 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{path::Path, sync::{Arc, Mutex}};
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
-use tokio::task;
 use uuid::Uuid;
 
 /// Trait: provides a schema and helpers to build a DataFrame from `polars::Row`s.
