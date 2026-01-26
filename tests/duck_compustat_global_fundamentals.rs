@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use words_db::finance_data_structs::global_fundamentals_compustat::GlobalFundQtrly;
-use words_db::finance_data_structs::DuckCrudModel;
+use words_db::finance_data_structs::{DuckCrudModel, ToPolars};
 use words_db::instantiatedb::duckdbinst::{start_duck_db, DbType};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 14)]
@@ -66,4 +66,12 @@ async fn duck_ingest_compustat_global_fundq_from_parquet() {
         .await
         .expect("read_range should work");
     assert!(!rows_range.is_empty(), "expected non-empty date slice");
+    let df = GlobalFundQtrly::df_from_rows(&rows_range).unwrap();
+    let df = df
+        .select([
+            "conm", "gvkey", "fyr", "fqtr", "datadate", "datacqtr", "cstkq", "dlttq", "curcdq",
+            "actq", "atq", "capxy", "ceqq", "invtq",
+        ])
+        .unwrap();
+    println!("{:?}", df.head(Some(20)));
 }

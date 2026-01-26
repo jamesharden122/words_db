@@ -71,29 +71,28 @@ def crsp_daily_securities():
             fields=fields_dsf
         )
 
-def crsp_daily_securities():
-    fields_dsf = [
+def crsp_monthly_securities():
+    fields_msf = [
         "permno", "permco", "cusip", "issuno", "date", "hexcd", "hsiccd",
         "prc", "openprc", "bid", "ask", "bidlo", "askhi", "ret", "retx",
-        "vol", "shrout", "numtrd", "cfacpr", "cfacshr",
+        "vol", "shrout", "cfacpr", "cfacshr","altprc","altprcdt","spread"
     ]    
     time_frame = [date(y, 1, 1).strftime("%Y-%m-%d") for y in range(1981, 2025)]
     filters = []
     for i in range(1,len(time_frame)):
         filters.append(build_filters(date__gte=time_frame[i-1], date__lte=time_frame[i]))
-    #filters.append(build_filters(date__gte="2024-01-01", date__lte="2024-12-31"))
+    filters.append(build_filters(date__gte="2024-01-01", date__lte="2024-12-31"))
     for flt in filters:
         params = {'filters': flt, 'limit': 100000}
         print(params)
         write_all_pages_to_zip(
-            WRDS_BASE+"crsp.dsf/",
+            WRDS_BASE+"crsp.msf/",
             headers=HEADERS,
             params=params,
-            zip_path="../../"+OUT_ROOT+"stkdlysecuritydata/"+flt+"_crsp_daily.zip",
-            zip_member_csv_name = flt+"_crsp_daily.csv",
-            fields=fields_dsf
+            zip_path="../../"+OUT_ROOT+"stkmthlysecuritydata/"+flt+"_crsp_monthly.zip",
+            zip_member_csv_name = flt+"_crsp_monthly.csv",
+            fields=fields_msf
         )
-
 
 def csrp_indexes(): 
         field_indexes = [
@@ -181,5 +180,6 @@ def compustat_global_indexes_mthly():
 if __name__ == "__main__":
     #_ = crsp_daily_securities()
     #_ = csrp_indexes()
-    _ = compustat_global_indexes_mthly()
+    #_ = compustat_global_indexes_mthly()
+    _ = crsp_monthly_securities()
     

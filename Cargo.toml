@@ -18,3 +18,7 @@ itertools = "0.14.0"
 duckdb = { version = "1.4.0", features = ["bundled","chrono"] }
 uuid = "1.18.1"
 arrow-array = "56.2.0"
+
+[profile.test]
+# Reduce debug info to avoid rustc/LLVM DWARF stack overflows when compiling large integration tests.
+debug = 1

@@ -1,8 +1,9 @@
+pub mod bank_regulatory;
 pub mod compustat;
 pub mod crsp;
 pub mod equity_factors;
-pub mod global_fundamentals_compustat;
 pub mod global_equities;
+pub mod global_fundamentals_compustat;
 pub mod usindexes;
 pub mod wdi;
 pub mod world_indices;
@@ -13,7 +14,10 @@ use itertools::Itertools; // <-- brings .chunks() into scope
 use polars::frame::row::Row;
 use polars::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{path::Path, sync::{Arc, Mutex}};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 use uuid::Uuid;
@@ -26,6 +30,34 @@ pub trait ToPolars {
     /// Convert a slice of rows into a DataFrame using the trait’s schema.
     fn df_from_rows(rows: &[Row]) -> PolarsResult<DataFrame> {
         DataFrame::from_rows_and_schema(rows, &Self::schema())
+    }
+
+    /// Read a Parquet file into a `DataFrame` using Polars `scan_parquet` (lazy) + `collect`.
+    ///
+    /// Designed to accept the `PathBuf` returned by `read_range_to_parquet`.
+    /// If calling from within a Tokio runtime (e.g. `#[tokio::test]`), prefer wrapping the call in
+    /// `tokio::task::spawn_blocking` to avoid nested-runtime panics from Polars internals.
+    fn df_from_parquet_scan<P: AsRef<Path>>(parquet_path: P) -> Result<DataFrame, AppError> {
+        Self::df_from_parquet_scan_with_args(parquet_path, ScanArgsParquet::default())
+    }
+
+    /// Same as `df_from_parquet_scan`, but allows customizing `ScanArgsParquet`.
+    fn df_from_parquet_scan_with_args<P: AsRef<Path>>(
+        parquet_path: P,
+        args: ScanArgsParquet,
+    ) -> Result<DataFrame, AppError> {
+        let parquet_path = parquet_path.as_ref();
+        if !parquet_path.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Parquet not found: {}", parquet_path.display()),
+            )
+            .into());
+        }
+
+        let path_str = parquet_path.to_string_lossy();
+        let lf = LazyFrame::scan_parquet(PlPath::from_str(path_str.as_ref()), args)?;
+        Ok(lf.collect()?)
     }
 
     /// Variant that accepts an iterator over rows (useful if you stream/build rows lazily).
@@ -221,7 +253,7 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
             })
         })
     }
-
+    //async fn store_duck_db(file_name: &str) -> Result<(), AppError>{let file_pth = Path::from(format!("{}.{}",file_name,"duckdb"));}
     /// 🔹 NEW: One-file Parquet ingest → JSON doc table with upsert.
     ///
     /// If `id_col` is `Some("col")`, uses that Parquet column (cast to TEXT) as `id`.
@@ -240,10 +272,31 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
             // Ensure table exists once
             let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
             Self::ensure_table(&conn_guard)?;
-            // Count rows in the file (inline path so DuckDB can infer schema at prepare time)
             let esc_path = path.replace('\'', "''");
-            let count_sql = format!("SELECT count(*) FROM read_parquet('{}')", esc_path);
-            let total: i64 = conn_guard.query_row(&count_sql, [], |r| r.get(0))?;
+            // Count rows, preferring Parquet metadata (avoids a full file scan) with a
+            // compatibility fallback to `read_parquet()` for older/newer DuckDB schemas.
+            let total: i64 = {
+                // Newer DuckDB versions expose row counts at the row-group level.
+                // Some versions expose `parquet_metadata()` at the column-chunk level,
+                // so dedupe by `row_group_id` to avoid overcounting.
+                let meta_sql = format!(
+                    "SELECT COALESCE(SUM(row_group_num_rows), 0)
+                     FROM (
+                        SELECT DISTINCT row_group_id, row_group_num_rows
+                        FROM parquet_metadata('{}')
+                     ) t",
+                    esc_path
+                );
+                match conn_guard.query_row(&meta_sql, [], |r| r.get::<_, i64>(0)) {
+                    Ok(v) => v,
+                    Err(_) => {
+                        // Fallback (full scan): keeps behavior correct across DuckDB versions.
+                        let count_sql =
+                            format!("SELECT count(*) FROM read_parquet('{}')", esc_path);
+                        conn_guard.query_row(&count_sql, [], |r| r.get::<_, i64>(0))?
+                    }
+                }
+            };
             println!("Row Count {}", total);
             // Build one-shot UPSERT SQL
             let sql = format!(

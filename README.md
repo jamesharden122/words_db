@@ -62,5 +62,10 @@ let inserted = GlobalRets::create_rets_result(rets, &db, "indexes", "daily", 15_
 Data files referenced by tests live outside the repo tree (e.g.
 `../data/raw_files/...`). Tests auto-skip when inputs are missing.
 
+## Troubleshooting
+If DuckDB fails to ingest a Parquet with an error like `Invalid string encoding ... not valid UTF8`,
+repair the file once (R + Arrow) and re-run:
+- `Rscript scripts/fix_parquet_utf8.R ../data/raw_files/parquet/bank_regulatory/holding_company_financials/bhck_legacy/kuuy1wbug5dlu3zz.parquet --inplace`
+
 ## Contributing
 See `AGENTS.md` for project structure, style, and PR guidelines.

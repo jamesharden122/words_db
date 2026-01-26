@@ -1,7 +1,7 @@
-use words_db::finance_data_structs::*;
-use words_db::instantiatedb::surrealdbinst::{start_mem_db, start_mem_db_no_table};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use words_db::finance_data_structs::*;
+use words_db::instantiatedb::surrealdbinst::{start_mem_db, start_mem_db_no_table};
 
 fn expand_home(raw: &str) -> String {
     if let Some(rest) = raw.strip_prefix("~/") {
@@ -79,7 +79,11 @@ async fn import_mem_db_works() {
             .as_nanos();
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("target")
-            .join(format!("surreal_roundtrip_{}_{}.sql", std::process::id(), nanos))
+            .join(format!(
+                "surreal_roundtrip_{}_{}.sql",
+                std::process::id(),
+                nanos
+            ))
     };
 
     let db = start_mem_db().await.expect("db should start");

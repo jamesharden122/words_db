@@ -1,5 +1,5 @@
 use super::{AppError, DuckCrudModel, SurrealCrudModel, ToPolars};
-use arrow_array::{Array, Date32Array, Float64Array, Int64Array, StringArray};
+use arrow_array::{Array, BooleanArray, Date32Array, Float64Array, Int64Array, StringArray};
 use chrono::{Datelike, NaiveDate};
 use duckdb::Connection;
 use itertools::izip;
@@ -7,7 +7,7 @@ use polars::frame::row::Row;
 use polars::prelude::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
@@ -416,15 +416,1455 @@ impl ToPolars for GlobalDailyIndex {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsCrspDly {
+    pub permno: Option<f64>,
+    pub date: NaiveDate,
+    pub nameendt: Option<NaiveDate>,
+    pub shrcd: Option<f64>,
+    pub exchcd: Option<f64>,
+    pub siccd: Option<String>,
+    pub ncusip: Option<String>,
+    pub ticker: Option<String>,
+    pub comnam: Option<String>,
+    pub shrcls: Option<String>,
+    pub tsymbol: Option<String>,
+    pub naics: Option<f64>,
+    pub primexch: Option<String>,
+    pub trdstat: Option<String>,
+    pub secstat: Option<String>,
+    pub permco: Option<f64>,
+    pub issuno: Option<f64>,
+    pub hexcd: Option<f64>,
+    pub hsiccd: Option<f64>,
+    pub cusip: Option<String>,
+    pub dclrdt: Option<NaiveDate>,
+    pub dlamt: Option<f64>,
+    pub dlpdt: Option<bool>,
+    pub dlstcd: Option<f64>,
+    pub nextdt: Option<bool>,
+    pub paydt: Option<NaiveDate>,
+    pub rcrddt: Option<NaiveDate>,
+    pub shrflg: Option<f64>,
+    pub hsicmg: Option<f64>,
+    pub hsicig: Option<f64>,
+    pub distcd: Option<f64>,
+    pub divamt: Option<f64>,
+    pub facpr: Option<f64>,
+    pub facshr: Option<f64>,
+    pub acperm: Option<bool>,
+    pub accomp: Option<bool>,
+    pub shrenddt: Option<NaiveDate>,
+    pub nwperm: Option<f64>,
+    pub dlretx: Option<String>,
+    pub dlprc: Option<f64>,
+    pub dlret: Option<String>,
+    pub trtscd: Option<f64>,
+    pub nmsind: Option<f64>,
+    pub mmcnt: Option<f64>,
+    pub nsdinx: Option<f64>,
+    pub bidlo: Option<f64>,
+    pub askhi: Option<f64>,
+    pub prc: Option<f64>,
+    pub vol: Option<f64>,
+    pub ret: Option<String>,
+    pub bid: Option<f64>,
+    pub ask: Option<f64>,
+    pub shrout: Option<f64>,
+    pub cfacpr: Option<f64>,
+    pub cfacshr: Option<f64>,
+    pub openprc: Option<f64>,
+    pub numtrd: Option<f64>,
+    pub retx: Option<String>,
+    pub vwretd: Option<f64>,
+    pub vwretx: Option<f64>,
+    pub ewretd: Option<f64>,
+    pub ewretx: Option<f64>,
+    pub sprtrn: Option<f64>,
+}
+
+impl SurrealCrudModel for UsCrspDly {
+    fn table() -> &'static str {
+        "us_crsp_dly"
+    }
+
+    fn id_key(&self) -> Option<String> {
+        self.permno.map(|permno| format!("{permno}:{}", self.date))
+    }
+}
+
+impl DuckCrudModel for UsCrspDly {
+    fn table() -> &'static str {
+        "us_crsp_dly"
+    }
+
+    fn id_key(&self) -> Option<String> {
+        <Self as SurrealCrudModel>::id_key(self)
+    }
+}
+
+impl ToPolars for UsCrspDly {
+    fn schema() -> Schema {
+        UsCrspDly::polars_schema()
+    }
+}
+
+impl UsCrspDly {
+    pub fn polars_schema() -> Schema {
+        Schema::from_iter([
+            Field::new("permno".into(), DataType::Float64),
+            Field::new("date".into(), DataType::Date),
+            Field::new("nameendt".into(), DataType::Date),
+            Field::new("shrcd".into(), DataType::Float64),
+            Field::new("exchcd".into(), DataType::Float64),
+            Field::new("siccd".into(), DataType::String),
+            Field::new("ncusip".into(), DataType::String),
+            Field::new("ticker".into(), DataType::String),
+            Field::new("comnam".into(), DataType::String),
+            Field::new("shrcls".into(), DataType::String),
+            Field::new("tsymbol".into(), DataType::String),
+            Field::new("naics".into(), DataType::Float64),
+            Field::new("primexch".into(), DataType::String),
+            Field::new("trdstat".into(), DataType::String),
+            Field::new("secstat".into(), DataType::String),
+            Field::new("permco".into(), DataType::Float64),
+            Field::new("issuno".into(), DataType::Float64),
+            Field::new("hexcd".into(), DataType::Float64),
+            Field::new("hsiccd".into(), DataType::Float64),
+            Field::new("cusip".into(), DataType::String),
+            Field::new("dclrdt".into(), DataType::Date),
+            Field::new("dlamt".into(), DataType::Float64),
+            Field::new("dlpdt".into(), DataType::Boolean),
+            Field::new("dlstcd".into(), DataType::Float64),
+            Field::new("nextdt".into(), DataType::Boolean),
+            Field::new("paydt".into(), DataType::Date),
+            Field::new("rcrddt".into(), DataType::Date),
+            Field::new("shrflg".into(), DataType::Float64),
+            Field::new("hsicmg".into(), DataType::Float64),
+            Field::new("hsicig".into(), DataType::Float64),
+            Field::new("distcd".into(), DataType::Float64),
+            Field::new("divamt".into(), DataType::Float64),
+            Field::new("facpr".into(), DataType::Float64),
+            Field::new("facshr".into(), DataType::Float64),
+            Field::new("acperm".into(), DataType::Boolean),
+            Field::new("accomp".into(), DataType::Boolean),
+            Field::new("shrenddt".into(), DataType::Date),
+            Field::new("nwperm".into(), DataType::Float64),
+            Field::new("dlretx".into(), DataType::String),
+            Field::new("dlprc".into(), DataType::Float64),
+            Field::new("dlret".into(), DataType::String),
+            Field::new("trtscd".into(), DataType::Float64),
+            Field::new("nmsind".into(), DataType::Float64),
+            Field::new("mmcnt".into(), DataType::Float64),
+            Field::new("nsdinx".into(), DataType::Float64),
+            Field::new("bidlo".into(), DataType::Float64),
+            Field::new("askhi".into(), DataType::Float64),
+            Field::new("prc".into(), DataType::Float64),
+            Field::new("vol".into(), DataType::Float64),
+            Field::new("ret".into(), DataType::String),
+            Field::new("bid".into(), DataType::Float64),
+            Field::new("ask".into(), DataType::Float64),
+            Field::new("shrout".into(), DataType::Float64),
+            Field::new("cfacpr".into(), DataType::Float64),
+            Field::new("cfacshr".into(), DataType::Float64),
+            Field::new("openprc".into(), DataType::Float64),
+            Field::new("numtrd".into(), DataType::Float64),
+            Field::new("retx".into(), DataType::String),
+            Field::new("vwretd".into(), DataType::Float64),
+            Field::new("vwretx".into(), DataType::Float64),
+            Field::new("ewretd".into(), DataType::Float64),
+            Field::new("ewretx".into(), DataType::Float64),
+            Field::new("sprtrn".into(), DataType::Float64),
+        ])
+    }
+
+    pub async fn duck_from_parquet(
+        conn: Arc<Mutex<Connection>>,
+        parquet_path: impl AsRef<Path>,
+    ) -> Result<usize, AppError> {
+        <Self as DuckCrudModel>::upsert_from_parquet_one_file(
+            conn,
+            parquet_path,
+            None,
+            Some(<Self as DuckCrudModel>::table().into()),
+        )
+        .await
+    }
+
+    pub async fn read_range_to_parquet(
+        conn: Arc<Mutex<Connection>>,
+        date_range: (NaiveDate, NaiveDate),
+        out_path: impl AsRef<Path>,
+    ) -> Result<PathBuf, AppError> {
+        let out_path = out_path.as_ref().to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            if out_path.exists() {
+                std::fs::remove_file(&out_path)?;
+            }
+
+            let table = <Self as DuckCrudModel>::table();
+            let out_sql = out_path.to_string_lossy().replace('\'', "''");
+            let sql = format!(
+                r#"COPY (
+    SELECT *
+    FROM {table}
+    WHERE CAST(date AS DATE) BETWEEN DATE '{start}' AND DATE '{end}'
+) TO '{out}' (FORMAT PARQUET);"#,
+                table = table,
+                start = date_range.0.to_string(),
+                end = date_range.1.to_string(),
+                out = out_sql
+            );
+
+            let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
+            conn_guard.execute_batch(&sql)?;
+            Ok::<PathBuf, AppError>(out_path)
+        })
+        .await?
+    }
+
+    pub async fn read_range<'a>(
+        conn: Arc<Mutex<Connection>>,
+        date_range: (NaiveDate, NaiveDate),
+    ) -> Result<Vec<Row<'a>>, AppError> {
+        tokio::task::spawn_blocking(move || {
+            let table = <Self as DuckCrudModel>::table();
+            let sql = format!(
+                r#"SELECT
+    CAST(permno AS DOUBLE) AS permno,
+    CAST(date AS DATE) AS date,
+    CAST(nameendt AS DATE) AS nameendt,
+    CAST(shrcd AS DOUBLE) AS shrcd,
+    CAST(exchcd AS DOUBLE) AS exchcd,
+    CAST(siccd AS VARCHAR) AS siccd,
+    CAST(ncusip AS VARCHAR) AS ncusip,
+    CAST(ticker AS VARCHAR) AS ticker,
+    CAST(comnam AS VARCHAR) AS comnam,
+    CAST(shrcls AS VARCHAR) AS shrcls,
+    CAST(tsymbol AS VARCHAR) AS tsymbol,
+    CAST(naics AS DOUBLE) AS naics,
+    CAST(primexch AS VARCHAR) AS primexch,
+    CAST(trdstat AS VARCHAR) AS trdstat,
+    CAST(secstat AS VARCHAR) AS secstat,
+    CAST(permco AS DOUBLE) AS permco,
+    CAST(issuno AS DOUBLE) AS issuno,
+    CAST(hexcd AS DOUBLE) AS hexcd,
+    CAST(hsiccd AS DOUBLE) AS hsiccd,
+    CAST(cusip AS VARCHAR) AS cusip,
+    CAST(dclrdt AS DATE) AS dclrdt,
+    CAST(dlamt AS DOUBLE) AS dlamt,
+    CAST(dlpdt AS BOOLEAN) AS dlpdt,
+    CAST(dlstcd AS DOUBLE) AS dlstcd,
+    CAST(nextdt AS BOOLEAN) AS nextdt,
+    CAST(paydt AS DATE) AS paydt,
+    CAST(rcrddt AS DATE) AS rcrddt,
+    CAST(shrflg AS DOUBLE) AS shrflg,
+    CAST(hsicmg AS DOUBLE) AS hsicmg,
+    CAST(hsicig AS DOUBLE) AS hsicig,
+    CAST(distcd AS DOUBLE) AS distcd,
+    CAST(divamt AS DOUBLE) AS divamt,
+    CAST(facpr AS DOUBLE) AS facpr,
+    CAST(facshr AS DOUBLE) AS facshr,
+    CAST(acperm AS BOOLEAN) AS acperm,
+    CAST(accomp AS BOOLEAN) AS accomp,
+    CAST(shrenddt AS DATE) AS shrenddt,
+    CAST(nwperm AS DOUBLE) AS nwperm,
+    CAST(dlretx AS VARCHAR) AS dlretx,
+    CAST(dlprc AS DOUBLE) AS dlprc,
+    CAST(dlret AS VARCHAR) AS dlret,
+    CAST(trtscd AS DOUBLE) AS trtscd,
+    CAST(nmsind AS DOUBLE) AS nmsind,
+    CAST(mmcnt AS DOUBLE) AS mmcnt,
+    CAST(nsdinx AS DOUBLE) AS nsdinx,
+    CAST(bidlo AS DOUBLE) AS bidlo,
+    CAST(askhi AS DOUBLE) AS askhi,
+    CAST(prc AS DOUBLE) AS prc,
+    CAST(vol AS DOUBLE) AS vol,
+    CAST(ret AS VARCHAR) AS ret,
+    CAST(bid AS DOUBLE) AS bid,
+    CAST(ask AS DOUBLE) AS ask,
+    CAST(shrout AS DOUBLE) AS shrout,
+    CAST(cfacpr AS DOUBLE) AS cfacpr,
+    CAST(cfacshr AS DOUBLE) AS cfacshr,
+    CAST(openprc AS DOUBLE) AS openprc,
+    CAST(numtrd AS DOUBLE) AS numtrd,
+    CAST(retx AS VARCHAR) AS retx,
+    CAST(vwretd AS DOUBLE) AS vwretd,
+    CAST(vwretx AS DOUBLE) AS vwretx,
+    CAST(ewretd AS DOUBLE) AS ewretd,
+    CAST(ewretx AS DOUBLE) AS ewretx,
+    CAST(sprtrn AS DOUBLE) AS sprtrn
+FROM {table}
+WHERE CAST(date AS DATE) BETWEEN DATE '{start}' AND DATE '{end}'
+ORDER BY permno, date"#,
+                table = table,
+                start = date_range.0.to_string(),
+                end = date_range.1.to_string(),
+            );
+
+            let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
+            let mut stmt = conn_guard.prepare(sql.as_str())?;
+            let mut reader = stmt.query_arrow([])?;
+            let mut out: Vec<Row<'static>> = Vec::new();
+
+            while let Some(batch) = reader.next() {
+                let schema = batch.schema();
+                let f = |name: &str| -> &Float64Array {
+                    batch
+                        .column(schema.index_of(name).unwrap())
+                        .as_any()
+                        .downcast_ref::<Float64Array>()
+                        .unwrap()
+                };
+                let s = |name: &str| -> &StringArray {
+                    batch
+                        .column(schema.index_of(name).unwrap())
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap()
+                };
+                let b = |name: &str| -> &BooleanArray {
+                    batch
+                        .column(schema.index_of(name).unwrap())
+                        .as_any()
+                        .downcast_ref::<BooleanArray>()
+                        .unwrap()
+                };
+                let d = |name: &str| -> &Date32Array {
+                    batch
+                        .column(schema.index_of(name).unwrap())
+                        .as_any()
+                        .downcast_ref::<Date32Array>()
+                        .unwrap()
+                };
+
+                let permno = f("permno");
+                let date = d("date");
+                let nameendt = d("nameendt");
+                let shrcd = f("shrcd");
+                let exchcd = f("exchcd");
+                let siccd = s("siccd");
+                let ncusip = s("ncusip");
+                let ticker = s("ticker");
+                let comnam = s("comnam");
+                let shrcls = s("shrcls");
+                let tsymbol = s("tsymbol");
+                let naics = f("naics");
+                let primexch = s("primexch");
+                let trdstat = s("trdstat");
+                let secstat = s("secstat");
+                let permco = f("permco");
+                let issuno = f("issuno");
+                let hexcd = f("hexcd");
+                let hsiccd = f("hsiccd");
+                let cusip = s("cusip");
+                let dclrdt = d("dclrdt");
+                let dlamt = f("dlamt");
+                let dlpdt = b("dlpdt");
+                let dlstcd = f("dlstcd");
+                let nextdt = b("nextdt");
+                let paydt = d("paydt");
+                let rcrddt = d("rcrddt");
+                let shrflg = f("shrflg");
+                let hsicmg = f("hsicmg");
+                let hsicig = f("hsicig");
+                let distcd = f("distcd");
+                let divamt = f("divamt");
+                let facpr = f("facpr");
+                let facshr = f("facshr");
+                let acperm = b("acperm");
+                let accomp = b("accomp");
+                let shrenddt = d("shrenddt");
+                let nwperm = f("nwperm");
+                let dlretx = s("dlretx");
+                let dlprc = f("dlprc");
+                let dlret = s("dlret");
+                let trtscd = f("trtscd");
+                let nmsind = f("nmsind");
+                let mmcnt = f("mmcnt");
+                let nsdinx = f("nsdinx");
+                let bidlo = f("bidlo");
+                let askhi = f("askhi");
+                let prc = f("prc");
+                let vol = f("vol");
+                let ret = s("ret");
+                let bid = f("bid");
+                let ask = f("ask");
+                let shrout = f("shrout");
+                let cfacpr = f("cfacpr");
+                let cfacshr = f("cfacshr");
+                let openprc = f("openprc");
+                let numtrd = f("numtrd");
+                let retx = s("retx");
+                let vwretd = f("vwretd");
+                let vwretx = f("vwretx");
+                let ewretd = f("ewretd");
+                let ewretx = f("ewretx");
+                let sprtrn = f("sprtrn");
+
+                for row_i in 0..batch.num_rows() {
+                    let mut vals: Vec<AnyValue<'static>> = Vec::with_capacity(63);
+                    vals.push(if permno.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(permno.value(row_i))
+                    });
+                    vals.push(if date.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(date.value(row_i))
+                    });
+                    vals.push(if nameendt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(nameendt.value(row_i))
+                    });
+                    vals.push(if shrcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(shrcd.value(row_i))
+                    });
+                    vals.push(if exchcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(exchcd.value(row_i))
+                    });
+                    vals.push(if siccd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(siccd.value(row_i).into())
+                    });
+                    vals.push(if ncusip.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(ncusip.value(row_i).into())
+                    });
+                    vals.push(if ticker.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(ticker.value(row_i).into())
+                    });
+                    vals.push(if comnam.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(comnam.value(row_i).into())
+                    });
+                    vals.push(if shrcls.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(shrcls.value(row_i).into())
+                    });
+                    vals.push(if tsymbol.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(tsymbol.value(row_i).into())
+                    });
+                    vals.push(if naics.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(naics.value(row_i))
+                    });
+                    vals.push(if primexch.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(primexch.value(row_i).into())
+                    });
+                    vals.push(if trdstat.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(trdstat.value(row_i).into())
+                    });
+                    vals.push(if secstat.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(secstat.value(row_i).into())
+                    });
+                    vals.push(if permco.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(permco.value(row_i))
+                    });
+                    vals.push(if issuno.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(issuno.value(row_i))
+                    });
+                    vals.push(if hexcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(hexcd.value(row_i))
+                    });
+                    vals.push(if hsiccd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(hsiccd.value(row_i))
+                    });
+                    vals.push(if cusip.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(cusip.value(row_i).into())
+                    });
+                    vals.push(if dclrdt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(dclrdt.value(row_i))
+                    });
+                    vals.push(if dlamt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(dlamt.value(row_i))
+                    });
+                    vals.push(if dlpdt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Boolean(dlpdt.value(row_i))
+                    });
+                    vals.push(if dlstcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(dlstcd.value(row_i))
+                    });
+                    vals.push(if nextdt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Boolean(nextdt.value(row_i))
+                    });
+                    vals.push(if paydt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(paydt.value(row_i))
+                    });
+                    vals.push(if rcrddt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(rcrddt.value(row_i))
+                    });
+                    vals.push(if shrflg.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(shrflg.value(row_i))
+                    });
+                    vals.push(if hsicmg.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(hsicmg.value(row_i))
+                    });
+                    vals.push(if hsicig.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(hsicig.value(row_i))
+                    });
+                    vals.push(if distcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(distcd.value(row_i))
+                    });
+                    vals.push(if divamt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(divamt.value(row_i))
+                    });
+                    vals.push(if facpr.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(facpr.value(row_i))
+                    });
+                    vals.push(if facshr.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(facshr.value(row_i))
+                    });
+                    vals.push(if acperm.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Boolean(acperm.value(row_i))
+                    });
+                    vals.push(if accomp.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Boolean(accomp.value(row_i))
+                    });
+                    vals.push(if shrenddt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(shrenddt.value(row_i))
+                    });
+                    vals.push(if nwperm.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(nwperm.value(row_i))
+                    });
+                    vals.push(if dlretx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(dlretx.value(row_i).into())
+                    });
+                    vals.push(if dlprc.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(dlprc.value(row_i))
+                    });
+                    vals.push(if dlret.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(dlret.value(row_i).into())
+                    });
+                    vals.push(if trtscd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(trtscd.value(row_i))
+                    });
+                    vals.push(if nmsind.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(nmsind.value(row_i))
+                    });
+                    vals.push(if mmcnt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(mmcnt.value(row_i))
+                    });
+                    vals.push(if nsdinx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(nsdinx.value(row_i))
+                    });
+                    vals.push(if bidlo.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(bidlo.value(row_i))
+                    });
+                    vals.push(if askhi.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(askhi.value(row_i))
+                    });
+                    vals.push(if prc.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(prc.value(row_i))
+                    });
+                    vals.push(if vol.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(vol.value(row_i))
+                    });
+                    vals.push(if ret.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(ret.value(row_i).into())
+                    });
+                    vals.push(if bid.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(bid.value(row_i))
+                    });
+                    vals.push(if ask.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(ask.value(row_i))
+                    });
+                    vals.push(if shrout.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(shrout.value(row_i))
+                    });
+                    vals.push(if cfacpr.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(cfacpr.value(row_i))
+                    });
+                    vals.push(if cfacshr.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(cfacshr.value(row_i))
+                    });
+                    vals.push(if openprc.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(openprc.value(row_i))
+                    });
+                    vals.push(if numtrd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(numtrd.value(row_i))
+                    });
+                    vals.push(if retx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(retx.value(row_i).into())
+                    });
+                    vals.push(if vwretd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(vwretd.value(row_i))
+                    });
+                    vals.push(if vwretx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(vwretx.value(row_i))
+                    });
+                    vals.push(if ewretd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(ewretd.value(row_i))
+                    });
+                    vals.push(if ewretx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(ewretx.value(row_i))
+                    });
+                    vals.push(if sprtrn.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(sprtrn.value(row_i))
+                    });
+                    out.push(Row::new(vals));
+                }
+            }
+
+            Ok::<Vec<Row>, AppError>(out)
+        })
+        .await?
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsCrspMthly {
+    pub permno: Option<f64>,
+    pub date: NaiveDate,
+    pub nameendt: Option<NaiveDate>,
+    pub shrcd: Option<f64>,
+    pub exchcd: Option<f64>,
+    pub siccd: Option<String>,
+    pub ncusip: Option<String>,
+    pub ticker: Option<String>,
+    pub comnam: Option<String>,
+    pub shrcls: Option<String>,
+    pub tsymbol: Option<String>,
+    pub naics: Option<f64>,
+    pub primexch: Option<String>,
+    pub trdstat: Option<String>,
+    pub secstat: Option<String>,
+    pub permco: Option<f64>,
+    pub issuno: Option<f64>,
+    pub hexcd: Option<f64>,
+    pub hsiccd: Option<f64>,
+    pub cusip: Option<String>,
+    pub dclrdt: Option<NaiveDate>,
+    pub dlamt: Option<f64>,
+    pub dlpdt: Option<NaiveDate>,
+    pub dlstcd: Option<f64>,
+    pub nextdt: Option<bool>,
+    pub paydt: Option<NaiveDate>,
+    pub rcrddt: Option<NaiveDate>,
+    pub shrflg: Option<f64>,
+    pub hsicmg: Option<f64>,
+    pub hsicig: Option<f64>,
+    pub distcd: Option<f64>,
+    pub divamt: Option<f64>,
+    pub facpr: Option<f64>,
+    pub facshr: Option<f64>,
+    pub acperm: Option<f64>,
+    pub accomp: Option<f64>,
+    pub shrenddt: Option<NaiveDate>,
+    pub nwperm: Option<f64>,
+    pub dlretx: Option<String>,
+    pub dlprc: Option<f64>,
+    pub dlret: Option<String>,
+    pub trtscd: Option<f64>,
+    pub nmsind: Option<f64>,
+    pub mmcnt: Option<f64>,
+    pub nsdinx: Option<f64>,
+    pub bidlo: Option<f64>,
+    pub askhi: Option<f64>,
+    pub prc: Option<f64>,
+    pub vol: Option<f64>,
+    pub ret: Option<String>,
+    pub bid: Option<f64>,
+    pub ask: Option<f64>,
+    pub shrout: Option<f64>,
+    pub cfacpr: Option<f64>,
+    pub cfacshr: Option<f64>,
+    pub altprc: Option<f64>,
+    pub spread: Option<f64>,
+    pub altprcdt: Option<NaiveDate>,
+    pub retx: Option<String>,
+    pub vwretd: Option<f64>,
+    pub vwretx: Option<f64>,
+    pub ewretd: Option<f64>,
+    pub ewretx: Option<f64>,
+    pub sprtrn: Option<f64>,
+}
+
+impl SurrealCrudModel for UsCrspMthly {
+    fn table() -> &'static str {
+        "us_crsp_mthly"
+    }
+
+    fn id_key(&self) -> Option<String> {
+        self.permno.map(|permno| format!("{permno}:{}", self.date))
+    }
+}
+
+impl DuckCrudModel for UsCrspMthly {
+    fn table() -> &'static str {
+        "us_crsp_mthly"
+    }
+
+    fn id_key(&self) -> Option<String> {
+        <Self as SurrealCrudModel>::id_key(self)
+    }
+}
+
+impl ToPolars for UsCrspMthly {
+    fn schema() -> Schema {
+        UsCrspMthly::polars_schema()
+    }
+}
+
+impl UsCrspMthly {
+    pub fn polars_schema() -> Schema {
+        Schema::from_iter([
+            Field::new("permno".into(), DataType::Float64),
+            Field::new("date".into(), DataType::Date),
+            Field::new("nameendt".into(), DataType::Date),
+            Field::new("shrcd".into(), DataType::Float64),
+            Field::new("exchcd".into(), DataType::Float64),
+            Field::new("siccd".into(), DataType::String),
+            Field::new("ncusip".into(), DataType::String),
+            Field::new("ticker".into(), DataType::String),
+            Field::new("comnam".into(), DataType::String),
+            Field::new("shrcls".into(), DataType::String),
+            Field::new("tsymbol".into(), DataType::String),
+            Field::new("naics".into(), DataType::Float64),
+            Field::new("primexch".into(), DataType::String),
+            Field::new("trdstat".into(), DataType::String),
+            Field::new("secstat".into(), DataType::String),
+            Field::new("permco".into(), DataType::Float64),
+            Field::new("issuno".into(), DataType::Float64),
+            Field::new("hexcd".into(), DataType::Float64),
+            Field::new("hsiccd".into(), DataType::Float64),
+            Field::new("cusip".into(), DataType::String),
+            Field::new("dclrdt".into(), DataType::Date),
+            Field::new("dlamt".into(), DataType::Float64),
+            Field::new("dlpdt".into(), DataType::Date),
+            Field::new("dlstcd".into(), DataType::Float64),
+            Field::new("nextdt".into(), DataType::Boolean),
+            Field::new("paydt".into(), DataType::Date),
+            Field::new("rcrddt".into(), DataType::Date),
+            Field::new("shrflg".into(), DataType::Float64),
+            Field::new("hsicmg".into(), DataType::Float64),
+            Field::new("hsicig".into(), DataType::Float64),
+            Field::new("distcd".into(), DataType::Float64),
+            Field::new("divamt".into(), DataType::Float64),
+            Field::new("facpr".into(), DataType::Float64),
+            Field::new("facshr".into(), DataType::Float64),
+            Field::new("acperm".into(), DataType::Float64),
+            Field::new("accomp".into(), DataType::Float64),
+            Field::new("shrenddt".into(), DataType::Date),
+            Field::new("nwperm".into(), DataType::Float64),
+            Field::new("dlretx".into(), DataType::String),
+            Field::new("dlprc".into(), DataType::Float64),
+            Field::new("dlret".into(), DataType::String),
+            Field::new("trtscd".into(), DataType::Float64),
+            Field::new("nmsind".into(), DataType::Float64),
+            Field::new("mmcnt".into(), DataType::Float64),
+            Field::new("nsdinx".into(), DataType::Float64),
+            Field::new("bidlo".into(), DataType::Float64),
+            Field::new("askhi".into(), DataType::Float64),
+            Field::new("prc".into(), DataType::Float64),
+            Field::new("vol".into(), DataType::Float64),
+            Field::new("ret".into(), DataType::String),
+            Field::new("bid".into(), DataType::Float64),
+            Field::new("ask".into(), DataType::Float64),
+            Field::new("shrout".into(), DataType::Float64),
+            Field::new("cfacpr".into(), DataType::Float64),
+            Field::new("cfacshr".into(), DataType::Float64),
+            Field::new("altprc".into(), DataType::Float64),
+            Field::new("spread".into(), DataType::Float64),
+            Field::new("altprcdt".into(), DataType::Date),
+            Field::new("retx".into(), DataType::String),
+            Field::new("vwretd".into(), DataType::Float64),
+            Field::new("vwretx".into(), DataType::Float64),
+            Field::new("ewretd".into(), DataType::Float64),
+            Field::new("ewretx".into(), DataType::Float64),
+            Field::new("sprtrn".into(), DataType::Float64),
+        ])
+    }
+
+    pub async fn duck_from_parquet(
+        conn: Arc<Mutex<Connection>>,
+        parquet_path: impl AsRef<Path>,
+    ) -> Result<usize, AppError> {
+        <Self as DuckCrudModel>::upsert_from_parquet_one_file(
+            conn,
+            parquet_path,
+            None,
+            Some(<Self as DuckCrudModel>::table().into()),
+        )
+        .await
+    }
+
+    pub async fn read_range_to_parquet(
+        conn: Arc<Mutex<Connection>>,
+        date_range: (NaiveDate, NaiveDate),
+        out_path: impl AsRef<Path>,
+    ) -> Result<PathBuf, AppError> {
+        let out_path = out_path.as_ref().to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            if out_path.exists() {
+                std::fs::remove_file(&out_path)?;
+            }
+
+            let table = <Self as DuckCrudModel>::table();
+            let out_sql = out_path.to_string_lossy().replace('\'', "''");
+            let sql = format!(
+                r#"COPY (
+    SELECT *
+    FROM {table}
+    WHERE CAST(date AS DATE) BETWEEN DATE '{start}' AND DATE '{end}'
+) TO '{out}' (FORMAT PARQUET);"#,
+                table = table,
+                start = date_range.0.to_string(),
+                end = date_range.1.to_string(),
+                out = out_sql
+            );
+
+            let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
+            conn_guard.execute_batch(&sql)?;
+            Ok::<PathBuf, AppError>(out_path)
+        })
+        .await?
+    }
+
+    pub async fn read_range<'a>(
+        conn: Arc<Mutex<Connection>>,
+        date_range: (NaiveDate, NaiveDate),
+    ) -> Result<Vec<Row<'a>>, AppError> {
+        tokio::task::spawn_blocking(move || {
+            let table = <Self as DuckCrudModel>::table();
+            let sql = format!(
+                r#"SELECT
+    CAST(permno AS DOUBLE) AS permno,
+    CAST(date AS DATE) AS date,
+    CAST(nameendt AS DATE) AS nameendt,
+    CAST(shrcd AS DOUBLE) AS shrcd,
+    CAST(exchcd AS DOUBLE) AS exchcd,
+    CAST(siccd AS VARCHAR) AS siccd,
+    CAST(ncusip AS VARCHAR) AS ncusip,
+    CAST(ticker AS VARCHAR) AS ticker,
+    CAST(comnam AS VARCHAR) AS comnam,
+    CAST(shrcls AS VARCHAR) AS shrcls,
+    CAST(tsymbol AS VARCHAR) AS tsymbol,
+    CAST(naics AS DOUBLE) AS naics,
+    CAST(primexch AS VARCHAR) AS primexch,
+    CAST(trdstat AS VARCHAR) AS trdstat,
+    CAST(secstat AS VARCHAR) AS secstat,
+    CAST(permco AS DOUBLE) AS permco,
+    CAST(issuno AS DOUBLE) AS issuno,
+    CAST(hexcd AS DOUBLE) AS hexcd,
+    CAST(hsiccd AS DOUBLE) AS hsiccd,
+    CAST(cusip AS VARCHAR) AS cusip,
+    CAST(dclrdt AS DATE) AS dclrdt,
+    CAST(dlamt AS DOUBLE) AS dlamt,
+    CAST(dlpdt AS DATE) AS dlpdt,
+    CAST(dlstcd AS DOUBLE) AS dlstcd,
+    CAST(nextdt AS BOOLEAN) AS nextdt,
+    CAST(paydt AS DATE) AS paydt,
+    CAST(rcrddt AS DATE) AS rcrddt,
+    CAST(shrflg AS DOUBLE) AS shrflg,
+    CAST(hsicmg AS DOUBLE) AS hsicmg,
+    CAST(hsicig AS DOUBLE) AS hsicig,
+    CAST(distcd AS DOUBLE) AS distcd,
+    CAST(divamt AS DOUBLE) AS divamt,
+    CAST(facpr AS DOUBLE) AS facpr,
+    CAST(facshr AS DOUBLE) AS facshr,
+    CAST(acperm AS DOUBLE) AS acperm,
+    CAST(accomp AS DOUBLE) AS accomp,
+    CAST(shrenddt AS DATE) AS shrenddt,
+    CAST(nwperm AS DOUBLE) AS nwperm,
+    CAST(dlretx AS VARCHAR) AS dlretx,
+    CAST(dlprc AS DOUBLE) AS dlprc,
+    CAST(dlret AS VARCHAR) AS dlret,
+    CAST(trtscd AS DOUBLE) AS trtscd,
+    CAST(nmsind AS DOUBLE) AS nmsind,
+    CAST(mmcnt AS DOUBLE) AS mmcnt,
+    CAST(nsdinx AS DOUBLE) AS nsdinx,
+    CAST(bidlo AS DOUBLE) AS bidlo,
+    CAST(askhi AS DOUBLE) AS askhi,
+    CAST(prc AS DOUBLE) AS prc,
+    CAST(vol AS DOUBLE) AS vol,
+    CAST(ret AS VARCHAR) AS ret,
+    CAST(bid AS DOUBLE) AS bid,
+    CAST(ask AS DOUBLE) AS ask,
+    CAST(shrout AS DOUBLE) AS shrout,
+    CAST(cfacpr AS DOUBLE) AS cfacpr,
+    CAST(cfacshr AS DOUBLE) AS cfacshr,
+    CAST(altprc AS DOUBLE) AS altprc,
+    CAST(spread AS DOUBLE) AS spread,
+    CAST(altprcdt AS DATE) AS altprcdt,
+    CAST(retx AS VARCHAR) AS retx,
+    CAST(vwretd AS DOUBLE) AS vwretd,
+    CAST(vwretx AS DOUBLE) AS vwretx,
+    CAST(ewretd AS DOUBLE) AS ewretd,
+    CAST(ewretx AS DOUBLE) AS ewretx,
+    CAST(sprtrn AS DOUBLE) AS sprtrn
+FROM {table}
+WHERE CAST(date AS DATE) BETWEEN DATE '{start}' AND DATE '{end}'
+ORDER BY permno, date"#,
+                table = table,
+                start = date_range.0.to_string(),
+                end = date_range.1.to_string(),
+            );
+
+            let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
+            let mut stmt = conn_guard.prepare(sql.as_str())?;
+            let mut reader = stmt.query_arrow([])?;
+            let mut out: Vec<Row<'static>> = Vec::new();
+
+            while let Some(batch) = reader.next() {
+                let schema = batch.schema();
+                let f = |name: &str| -> &Float64Array {
+                    batch
+                        .column(schema.index_of(name).unwrap())
+                        .as_any()
+                        .downcast_ref::<Float64Array>()
+                        .unwrap()
+                };
+                let s = |name: &str| -> &StringArray {
+                    batch
+                        .column(schema.index_of(name).unwrap())
+                        .as_any()
+                        .downcast_ref::<StringArray>()
+                        .unwrap()
+                };
+                let b = |name: &str| -> &BooleanArray {
+                    batch
+                        .column(schema.index_of(name).unwrap())
+                        .as_any()
+                        .downcast_ref::<BooleanArray>()
+                        .unwrap()
+                };
+                let d = |name: &str| -> &Date32Array {
+                    batch
+                        .column(schema.index_of(name).unwrap())
+                        .as_any()
+                        .downcast_ref::<Date32Array>()
+                        .unwrap()
+                };
+
+                let permno = f("permno");
+                let date = d("date");
+                let nameendt = d("nameendt");
+                let shrcd = f("shrcd");
+                let exchcd = f("exchcd");
+                let siccd = s("siccd");
+                let ncusip = s("ncusip");
+                let ticker = s("ticker");
+                let comnam = s("comnam");
+                let shrcls = s("shrcls");
+                let tsymbol = s("tsymbol");
+                let naics = f("naics");
+                let primexch = s("primexch");
+                let trdstat = s("trdstat");
+                let secstat = s("secstat");
+                let permco = f("permco");
+                let issuno = f("issuno");
+                let hexcd = f("hexcd");
+                let hsiccd = f("hsiccd");
+                let cusip = s("cusip");
+                let dclrdt = d("dclrdt");
+                let dlamt = f("dlamt");
+                let dlpdt = d("dlpdt");
+                let dlstcd = f("dlstcd");
+                let nextdt = b("nextdt");
+                let paydt = d("paydt");
+                let rcrddt = d("rcrddt");
+                let shrflg = f("shrflg");
+                let hsicmg = f("hsicmg");
+                let hsicig = f("hsicig");
+                let distcd = f("distcd");
+                let divamt = f("divamt");
+                let facpr = f("facpr");
+                let facshr = f("facshr");
+                let acperm = f("acperm");
+                let accomp = f("accomp");
+                let shrenddt = d("shrenddt");
+                let nwperm = f("nwperm");
+                let dlretx = s("dlretx");
+                let dlprc = f("dlprc");
+                let dlret = s("dlret");
+                let trtscd = f("trtscd");
+                let nmsind = f("nmsind");
+                let mmcnt = f("mmcnt");
+                let nsdinx = f("nsdinx");
+                let bidlo = f("bidlo");
+                let askhi = f("askhi");
+                let prc = f("prc");
+                let vol = f("vol");
+                let ret = s("ret");
+                let bid = f("bid");
+                let ask = f("ask");
+                let shrout = f("shrout");
+                let cfacpr = f("cfacpr");
+                let cfacshr = f("cfacshr");
+                let altprc = f("altprc");
+                let spread = f("spread");
+                let altprcdt = d("altprcdt");
+                let retx = s("retx");
+                let vwretd = f("vwretd");
+                let vwretx = f("vwretx");
+                let ewretd = f("ewretd");
+                let ewretx = f("ewretx");
+                let sprtrn = f("sprtrn");
+
+                for row_i in 0..batch.num_rows() {
+                    let mut vals: Vec<AnyValue<'static>> = Vec::with_capacity(64);
+                    vals.push(if permno.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(permno.value(row_i))
+                    });
+                    vals.push(if date.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(date.value(row_i))
+                    });
+                    vals.push(if nameendt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(nameendt.value(row_i))
+                    });
+                    vals.push(if shrcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(shrcd.value(row_i))
+                    });
+                    vals.push(if exchcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(exchcd.value(row_i))
+                    });
+                    vals.push(if siccd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(siccd.value(row_i).into())
+                    });
+                    vals.push(if ncusip.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(ncusip.value(row_i).into())
+                    });
+                    vals.push(if ticker.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(ticker.value(row_i).into())
+                    });
+                    vals.push(if comnam.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(comnam.value(row_i).into())
+                    });
+                    vals.push(if shrcls.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(shrcls.value(row_i).into())
+                    });
+                    vals.push(if tsymbol.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(tsymbol.value(row_i).into())
+                    });
+                    vals.push(if naics.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(naics.value(row_i))
+                    });
+                    vals.push(if primexch.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(primexch.value(row_i).into())
+                    });
+                    vals.push(if trdstat.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(trdstat.value(row_i).into())
+                    });
+                    vals.push(if secstat.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(secstat.value(row_i).into())
+                    });
+                    vals.push(if permco.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(permco.value(row_i))
+                    });
+                    vals.push(if issuno.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(issuno.value(row_i))
+                    });
+                    vals.push(if hexcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(hexcd.value(row_i))
+                    });
+                    vals.push(if hsiccd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(hsiccd.value(row_i))
+                    });
+                    vals.push(if cusip.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(cusip.value(row_i).into())
+                    });
+                    vals.push(if dclrdt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(dclrdt.value(row_i))
+                    });
+                    vals.push(if dlamt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(dlamt.value(row_i))
+                    });
+                    vals.push(if dlpdt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(dlpdt.value(row_i))
+                    });
+                    vals.push(if dlstcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(dlstcd.value(row_i))
+                    });
+                    vals.push(if nextdt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Boolean(nextdt.value(row_i))
+                    });
+                    vals.push(if paydt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(paydt.value(row_i))
+                    });
+                    vals.push(if rcrddt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(rcrddt.value(row_i))
+                    });
+                    vals.push(if shrflg.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(shrflg.value(row_i))
+                    });
+                    vals.push(if hsicmg.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(hsicmg.value(row_i))
+                    });
+                    vals.push(if hsicig.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(hsicig.value(row_i))
+                    });
+                    vals.push(if distcd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(distcd.value(row_i))
+                    });
+                    vals.push(if divamt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(divamt.value(row_i))
+                    });
+                    vals.push(if facpr.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(facpr.value(row_i))
+                    });
+                    vals.push(if facshr.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(facshr.value(row_i))
+                    });
+                    vals.push(if acperm.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(acperm.value(row_i))
+                    });
+                    vals.push(if accomp.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(accomp.value(row_i))
+                    });
+                    vals.push(if shrenddt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(shrenddt.value(row_i))
+                    });
+                    vals.push(if nwperm.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(nwperm.value(row_i))
+                    });
+                    vals.push(if dlretx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(dlretx.value(row_i).into())
+                    });
+                    vals.push(if dlprc.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(dlprc.value(row_i))
+                    });
+                    vals.push(if dlret.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(dlret.value(row_i).into())
+                    });
+                    vals.push(if trtscd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(trtscd.value(row_i))
+                    });
+                    vals.push(if nmsind.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(nmsind.value(row_i))
+                    });
+                    vals.push(if mmcnt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(mmcnt.value(row_i))
+                    });
+                    vals.push(if nsdinx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(nsdinx.value(row_i))
+                    });
+                    vals.push(if bidlo.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(bidlo.value(row_i))
+                    });
+                    vals.push(if askhi.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(askhi.value(row_i))
+                    });
+                    vals.push(if prc.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(prc.value(row_i))
+                    });
+                    vals.push(if vol.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(vol.value(row_i))
+                    });
+                    vals.push(if ret.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(ret.value(row_i).into())
+                    });
+                    vals.push(if bid.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(bid.value(row_i))
+                    });
+                    vals.push(if ask.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(ask.value(row_i))
+                    });
+                    vals.push(if shrout.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(shrout.value(row_i))
+                    });
+                    vals.push(if cfacpr.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(cfacpr.value(row_i))
+                    });
+                    vals.push(if cfacshr.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(cfacshr.value(row_i))
+                    });
+                    vals.push(if altprc.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(altprc.value(row_i))
+                    });
+                    vals.push(if spread.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(spread.value(row_i))
+                    });
+                    vals.push(if altprcdt.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Date(altprcdt.value(row_i))
+                    });
+                    vals.push(if retx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::StringOwned(retx.value(row_i).into())
+                    });
+                    vals.push(if vwretd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(vwretd.value(row_i))
+                    });
+                    vals.push(if vwretx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(vwretx.value(row_i))
+                    });
+                    vals.push(if ewretd.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(ewretd.value(row_i))
+                    });
+                    vals.push(if ewretx.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(ewretx.value(row_i))
+                    });
+                    vals.push(if sprtrn.is_null(row_i) {
+                        AnyValue::Null
+                    } else {
+                        AnyValue::Float64(sprtrn.value(row_i))
+                    });
+                    out.push(Row::new(vals));
+                }
+            }
+
+            Ok::<Vec<Row>, AppError>(out)
+        })
+        .await?
+    }
+}
+
 pub fn normalize_date_str(s: &str) -> Result<NaiveDate, AppError> {
     NaiveDate::parse_from_str(s, "%Y-%m-%d")
         .or_else(|_| NaiveDate::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%:z"))
         .map_err(AppError::ChronoError)
 }
 
-
-pub fn finance_tickers() -> Option<Vec<String>>{
-        let tic_vec = vec![
+pub fn finance_tickers() -> Option<Vec<String>> {
+    let tic_vec = vec![
         "I3MLT002".to_string(),
         "I3SWE001".to_string(),
         "I6UNK001".to_string(),

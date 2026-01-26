@@ -20,8 +20,9 @@ COMP_ROOT   = "data/zip/compustat/"
 G_FUNDQ_OUT_DIR = "/home/yakaman/Dropbox/Desktop/tesero-sol/software_development/trading/data/zip/compustat/global_fundamentals"
 # Output directory for comp.g_names
 G_NAMES_OUT_DIR = "/home/yakaman/Dropbox/Desktop/tesero-sol/software_development/trading/data/zip/compustat/global_names"
+EXECUCOMP_OUT_DIR = "/home/yakaman/Dropbox/Desktop/tesero-sol/software_development/trading/data/zip/compustat/execucomp"
 YEAR_FROM  = 1925
-YEAR_TO    = date.today().year
+YEAR_TO    = date.today().year  
 
 
 def ymd(d): return d.strftime("%Y-%m-%d")
@@ -192,10 +193,230 @@ def compustat_global_names(start_year: int = 1987, end_year: int = 2025, window_
         )
 
 
+def compustat_execucomp_anncomp(start_year: int = 1992, end_year: int = 2025, window_years: int = 5):
+    url = WRDS_BASE + "execcomp.anncomp/"
+    # Discover fields once for a stable header
+    fields = discover_fields(url, HEADERS, {'limit': 1})
+
+    # Build 5-year windows using closed-open ranges on year1
+    bounds = list(range(int(start_year), int(end_year), int(window_years)))
+    if bounds[-1] != end_year:
+        bounds.append(end_year)
+    print(bounds)
+    os.makedirs(G_NAMES_OUT_DIR, exist_ok=True)
+    for i in range(1, len(bounds)):
+        start = bounds[i-1]
+        stop = bounds[i]
+        if i < len(bounds) - 1:
+            flt = build_filters(year1__gte=start, year1__lt=stop)
+        else:
+            # Last window: include end_year inclusively
+            flt = build_filters(year1__gte=start, year1__lte=stop)
+        print(flt)
+        params = {'filters': flt, 'limit': 99999999}
+        write_all_pages_to_zip(
+            url,
+            headers=HEADERS,
+            params=params,
+            zip_path=os.path.join(EXECUCOMP_OUT_DIR, "anncomp/",f"{flt}_anncomp.zip"),
+            zip_member_csv_name=f"{flt}_anncomp.csv",
+            fields=fields,
+        )
+
+def compustat_execucomp_defferedcomp(start_year: int = 1992, end_year: int = 2025, window_years: int = 5):
+    url = WRDS_BASE + "execcomp.deferredcomp/"
+    # Discover fields once for a stable header
+    fields = discover_fields(url, HEADERS, {'limit': 1})
+
+    # Build 5-year windows using closed-open ranges on year1
+    bounds = list(range(int(start_year), int(end_year), int(window_years)))
+    if bounds[-1] != end_year:
+        bounds.append(end_year)
+    print(bounds)
+    os.makedirs(G_NAMES_OUT_DIR, exist_ok=True)
+    for i in range(1, len(bounds)):
+        start = bounds[i-1]
+        stop = bounds[i]
+        if i < len(bounds) - 1:
+            flt = build_filters(year__gte=start, year__lt=stop)
+        else:
+            # Last window: include end_year inclusively
+            flt = build_filters(year__gte=start, year__lte=stop)
+        print(flt)
+        params = {'filters': flt, 'limit': 99999999}
+        write_all_pages_to_zip(
+            url,
+            headers=HEADERS,
+            params=params,
+            zip_path=os.path.join(EXECUCOMP_OUT_DIR, "defferedcomp/",f"{flt}_defferedcomp.zip"),
+            zip_member_csv_name=f"{flt}_defferedcomp.csv",
+            fields=fields,
+        )
+def compustat_execucomp_ltawdtab(start_year: int = 1992, end_year: int = 2025, window_years: int = 5):
+    url = WRDS_BASE + "execcomp.ltawdtab/"
+    # Discover fields once for a stable header
+    fields = discover_fields(url, HEADERS, {'limit': 1})
+
+    # Build 5-year windows using closed-open ranges on year1
+    bounds = list(range(int(start_year), int(end_year), int(window_years)))
+    if bounds[-1] != end_year:
+        bounds.append(end_year)
+    print(bounds)
+    os.makedirs(G_NAMES_OUT_DIR, exist_ok=True)
+    for i in range(1, len(bounds)):
+        start = bounds[i-1]
+        stop = bounds[i]
+        if i < len(bounds) - 1:
+            flt = build_filters(year__gte=start, year__lt=stop)
+        else:
+            # Last window: include end_year inclusively
+            flt = build_filters(year__gte=start, year__lte=stop)
+        print(flt)
+        params = {'filters': flt, 'limit': 99999999}
+        write_all_pages_to_zip(
+            url,
+            headers=HEADERS,
+            params=params,
+            zip_path=os.path.join(EXECUCOMP_OUT_DIR, "ltawdtab/",f"{flt}_ltawdtab.zip"),
+            zip_member_csv_name=f"{flt}_ltawdtab.csv",
+            fields=fields,
+        )
+
+def compustat_execucomp_outstandingawards(start_year: int = 1992, end_year: int = 2025, window_years: int = 5):
+    url = WRDS_BASE + "execcomp.outstandingawards/"
+    # Discover fields once for a stable header
+    fields = discover_fields(url, HEADERS, {'limit': 1})
+
+    # Build 5-year windows using closed-open ranges on year1
+    bounds = list(range(int(start_year), int(end_year), int(window_years)))
+    if bounds[-1] != end_year:
+        bounds.append(end_year)
+    print(bounds)
+    os.makedirs(G_NAMES_OUT_DIR, exist_ok=True)
+    for i in range(1, len(bounds)):
+        start = bounds[i-1]
+        stop = bounds[i]
+        if i < len(bounds) - 1:
+            flt = build_filters(year__gte=start, year__lt=stop)
+        else:
+            # Last window: include end_year inclusively
+            flt = build_filters(year__gte=start, year__lte=stop)
+        print(flt)
+        params = {'filters': flt, 'limit': 99999999}
+        write_all_pages_to_zip(
+            url,
+            headers=HEADERS,
+            params=params,
+            zip_path=os.path.join(EXECUCOMP_OUT_DIR, "outstandingawards/",f"{flt}_outstandingawards.zip"),
+            zip_member_csv_name=f"{flt}_outstandingawards.csv",
+            fields=fields,
+        )
+
+def compustat_execucomp_stgrttab(start_year: int = 1992, end_year: int = 2025, window_years: int = 5):
+    url = WRDS_BASE + "execcomp.stgrttab/"
+    # Discover fields once for a stable header
+    fields = discover_fields(url, HEADERS, {'limit': 1})
+
+    # Build 5-year windows using closed-open ranges on year1
+    bounds = list(range(int(start_year), int(end_year), int(window_years)))
+    if bounds[-1] != end_year:
+        bounds.append(end_year)
+    print(bounds)
+    os.makedirs(G_NAMES_OUT_DIR, exist_ok=True)
+    for i in range(1, len(bounds)):
+        start = bounds[i-1]
+        stop = bounds[i]
+        if i < len(bounds) - 1:
+            flt = build_filters(year__gte=start, year__lt=stop)
+        else:
+            # Last window: include end_year inclusively
+            flt = build_filters(year__gte=start, year__lte=stop)
+        print(flt)
+        params = {'filters': flt, 'limit': 99999999}
+        write_all_pages_to_zip(
+            url,
+            headers=HEADERS,
+            params=params,
+            zip_path=os.path.join(EXECUCOMP_OUT_DIR, "stgrttab/",f"{flt}_stgrttab.zip"),
+            zip_member_csv_name=f"{flt}_stgrttab.csv",
+            fields=fields,
+        )
+
+def compustat_execucomp_pension(start_year: int = 1992, end_year: int = 2025, window_years: int = 5):
+    url = WRDS_BASE + "execcomp.pension/"
+    # Discover fields once for a stable header
+    fields = discover_fields(url, HEADERS, {'limit': 1})
+
+    # Build 5-year windows using closed-open ranges on year1
+    bounds = list(range(int(start_year), int(end_year), int(window_years)))
+    if bounds[-1] != end_year:
+        bounds.append(end_year)
+    print(bounds)
+    os.makedirs(G_NAMES_OUT_DIR, exist_ok=True)
+    for i in range(1, len(bounds)):
+        start = bounds[i-1]
+        stop = bounds[i]
+        if i < len(bounds) - 1:
+            flt = build_filters(year__gte=start, year__lt=stop)
+        else:
+            # Last window: include end_year inclusively
+            flt = build_filters(year__gte=start, year__lte=stop)
+        print(flt)
+        params = {'filters': flt, 'limit': 99999999}
+        write_all_pages_to_zip(
+            url,
+            headers=HEADERS,
+            params=params,
+            zip_path=os.path.join(EXECUCOMP_OUT_DIR, "pension/",f"{flt}_pension.zip"),
+            zip_member_csv_name=f"{flt}_pension.csv",
+            fields=fields,
+        )
+
+def compustat_execucomp_planbasedawards(start_year: int = 1992, end_year: int = 2025, window_years: int = 5):
+    url = WRDS_BASE + "execcomp.planbasedawards/"
+    # Discover fields once for a stable header
+    fields = discover_fields(url, HEADERS, {'limit': 1})
+
+    # Build 5-year windows using closed-open ranges on year1
+    bounds = list(range(int(start_year), int(end_year), int(window_years)))
+    if bounds[-1] != end_year:
+        bounds.append(end_year)
+    print(bounds)
+    os.makedirs(G_NAMES_OUT_DIR, exist_ok=True)
+    for i in range(1, len(bounds)):
+        start = bounds[i-1]
+        stop = bounds[i]
+        if i < len(bounds) - 1:
+            flt = build_filters(year__gte=start, year__lt=stop)
+        else:
+            # Last window: include end_year inclusively
+            flt = build_filters(year__gte=start, year__lte=stop)
+        print(flt)
+        params = {'filters': flt, 'limit': 99999999}
+        write_all_pages_to_zip(
+            url,
+            headers=HEADERS,
+            params=params,
+            zip_path=os.path.join(EXECUCOMP_OUT_DIR, "planbasedawards/",f"{flt}_planbasedawards.zip"),
+            zip_member_csv_name=f"{flt}_planbasedawards.csv",
+            fields=fields,
+        )
+
+
+
+
+
+
 if __name__ == "__main__":
     #_ = crsp_daily_securities()
     #_ = csrp_indexes()
     #_ = compustat_global_fundq()
-    _ = compustat_global_names()
+    #_ = compustat_execucomp_anncomp()
+    _ = compustat_execucomp_pension(start_year = 2006, end_year = 2025)
+    _ = compustat_execucomp_stgrttab(start_year = 1992, end_year = 2025)
+    _ = compustat_execucomp_ltawdtab(start_year = 1992, end_year = 2006)
+    _ = compustat_execucomp_defferedcomp(start_year = 2006, end_year = 2025)
+    _ = compustat_execucomp_planbasedawards(start_year = 2006, end_year = 2025)
+    _ = compustat_execucomp_outstandingawards(start_year = 1997, end_year = 2025)
 
     

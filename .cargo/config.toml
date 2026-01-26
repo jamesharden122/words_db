@@ -1,0 +1,4 @@
+[env]
+# Work around rustc stack overflows/LLVM DWARF recursion seen when compiling large test crates.
+RUST_MIN_STACK = "16777216"
+

@@ -8,7 +8,9 @@
 #' 4) deletes the CSV,
 #' 5) re-zips the Parquet to `output_dir` using the original ZIP filename.
 #'
-#' The Parquet file name inside the new ZIP matches the original CSV's base name.
+#' By default, the Parquet file name inside the new ZIP matches the original
+#' ZIP's base name (minus ".zip"). This avoids collisions when many ZIPs contain
+#' identically-named CSVs (common for vendor extracts).
 #'
 #' @param input_dir Directory containing .zip files (each with a single CSV).
 #' @param output_dir Directory to write the new ZIPs (can be the same as input).
@@ -17,6 +19,8 @@
 #' @param parquet_compression Parquet compression codec passed to save_parquet()
 #'   (e.g., "zstd", "snappy", "gzip", "uncompressed").
 #' @param parquet_compression_level Optional compression level for Parquet.
+#' @param parquet_name_from How to name the Parquet file inside the output ZIP:
+#'   "zip" (default; use ZIP base name) or "csv" (use CSV base name).
 #' @param overwrite If TRUE, overwrite existing ZIPs in output_dir.
 #' @return A tibble summarizing results (file, status, message).
 #' @examples
@@ -34,6 +38,8 @@ source("save_parquet.r")
 #' @param csv_readr_args List of extra args for readr::read_csv().
 #' @param parquet_compression Compression codec for Parquet (e.g., "zstd").
 #' @param parquet_compression_level Optional compression level.
+#' @param parquet_name_from How to name the Parquet file inside the output ZIP:
+#'   "zip" (default; use ZIP base name) or "csv" (use CSV base name).
 #' @param overwrite If TRUE, overwrite `dest_zip` if it exists.
 #' @return A list with `status` and `message`.
 convert_zip_csv_to_parquet_zip <- function(zip_in,
@@ -41,6 +47,7 @@ convert_zip_csv_to_parquet_zip <- function(zip_in,
                                            csv_readr_args = list(),
                                            parquet_compression = "zstd",
                                            parquet_compression_level = NULL,
+                                           parquet_name_from = c("zip", "csv"),
                                            overwrite = TRUE) {
   if (!file.exists(zip_in)) {
     stop(sprintf("zip file not found: %s", zip_in))
@@ -76,8 +83,13 @@ convert_zip_csv_to_parquet_zip <- function(zip_in,
   }
   csv_path <- csv_files[[1]]
 
-  # base name for parquet (keep CSV name)
-  parquet_name <- paste0(tools::file_path_sans_ext(basename(csv_path)), ".parquet")
+  parquet_name_from <- match.arg(parquet_name_from)
+  parquet_base <- switch(
+    parquet_name_from,
+    zip = tools::file_path_sans_ext(basename(zip_in)),
+    csv = tools::file_path_sans_ext(basename(csv_path))
+  )
+  parquet_name <- paste0(parquet_base, ".parquet")
   parquet_path <- file.path(work_dir, parquet_name)
 
   # 3) read CSV and write Parquet via save_parquet()
@@ -142,6 +154,7 @@ convert_zip_csvs_to_parquet_zip <- function(input_dir,
                                             csv_readr_args = list(),
                                             parquet_compression = "zstd",
                                             parquet_compression_level = NULL,
+                                            parquet_name_from = c("zip", "csv"),
                                             overwrite = TRUE) {
   # ---- validation -----------------------------------------------------------
   if (!dir.exists(input_dir)) {
@@ -158,6 +171,8 @@ convert_zip_csvs_to_parquet_zip <- function(input_dir,
   }
   results <- vector("list", length(zip_paths))
 
+  parquet_name_from <- match.arg(parquet_name_from)
+
   for (i in seq_along(zip_paths)) {
     zip_in <- zip_paths[[i]]
     zip_name <- basename(zip_in)
@@ -170,6 +185,7 @@ convert_zip_csvs_to_parquet_zip <- function(input_dir,
         csv_readr_args = csv_readr_args,
         parquet_compression = parquet_compression,
         parquet_compression_level = parquet_compression_level,
+        parquet_name_from = parquet_name_from,
         overwrite = overwrite
       )
     }, silent = TRUE)

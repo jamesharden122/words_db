@@ -17,7 +17,6 @@ pub async fn start_mem_db_no_table() -> surrealdb::Result<Surreal<Db>> {
     Ok(db)
 }
 
-
 pub async fn start_mem_db_global_indexes(
     global_index_pth: &str,
     batch_size: usize,
