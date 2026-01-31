@@ -4,17 +4,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use words_db::createdatasets::usbanks::{
+    dly_securities_ds_from_db_files, fundamental_ds_from_db_files,
+    mthly_securities_ds_from_db_files,
+};
 use words_db::finance_data_structs::bank_regulatory::{
     BhckLegacy1, BhckOther1, BhckSeries1, BhckSeries2,
 };
 use words_db::finance_data_structs::ToPolars;
 use words_db::instantiatedb::duckdbinst::open_duck_db_from_file;
-use words_db::instantiatedb::duckdbinst::{
-    persist_selected_tables_to_file, start_duck_db, DbType,
-};
-use words_db::createdatasets::usbanks::{
-    dly_securities_ds_from_db_files, fundamental_ds_from_db_files, mthly_securities_ds_from_db_files,
-};
+use words_db::instantiatedb::duckdbinst::{persist_selected_tables_to_file, start_duck_db, DbType};
 
 const BANK_REG_BASE: &str = "../data/raw_files/parquet/bank_regulatory/holding_company_financials";
 const BHCK_CRSP_LINK_FILE: &str =
@@ -29,6 +28,8 @@ const BCHK_LEGACY1: &str = "bhck_legacy/kuuy1wbug5dlu3zz.parquet";
 const US_CRSP_DLY_FILE: &str = "../data/raw_files/parquet/crsp/us_bhc/daily_usbank_crsp.parquet";
 const US_CRSP_MTHLY_FILE: &str =
     "../data/raw_files/parquet/crsp/us_bhc/monthly_usbank_crsp.parquet";
+const FF_DLY_FILE: &str = "../data/raw_files/parquet/factors/us/daily_ff_factors.parquet";
+const FF_MTHLY_FILE: &str = "../data/raw_files/parquet/factors/us/monthly_ff_factors.parquet";
 
 fn yyyymmdd_to_date(yyyymmdd: i64) -> NaiveDate {
     let year = (yyyymmdd / 10_000) as i32;
@@ -38,24 +39,22 @@ fn yyyymmdd_to_date(yyyymmdd: i64) -> NaiveDate {
         .unwrap_or_else(|| panic!("invalid yyyymmdd: {yyyymmdd}"))
 }
 
-fn bank_cases() -> [(DbType, &'static str, &'static str); 3] {
+fn bank_cases() -> [(DbType, &'static str, &'static str); 4] {
     [
-        /*(
-            DbType::BhckLegacy1,
-            BCHK_LEGACY1,
-            "bhck_legacy",
-        ),*/
+        (DbType::BhckLegacy1, BCHK_LEGACY1, "bhck_legacy"),
         (DbType::BhckOther1, BHCK_OTHER, "bhck_other"),
         (DbType::BhckSeries1, BHCK_SERIES1, "bhck_series1"),
         (DbType::BhckSeries2, BHCK_SERIES2, "bhck_series2"),
     ]
 }
 
-fn bank_crsp_cases() -> [(DbType, &'static str, &'static str); 3] {
+fn bank_crsp_cases() -> [(DbType, &'static str, &'static str); 5] {
     [
         (DbType::BhckCrspLink, BHCK_CRSP_LINK_FILE, "bhck_crsp_link"),
         (DbType::UsCrspDly, US_CRSP_DLY_FILE, "us_crsp_dly"),
         (DbType::UsCrspMthly, US_CRSP_MTHLY_FILE, "us_crsp_mthly"),
+        (DbType::FamaFrenDly, FF_DLY_FILE, "fama_french_daily"),
+        (DbType::FamaFrenMthly, FF_MTHLY_FILE, "fama_french_monthly"),
     ]
 }
 
@@ -87,8 +86,7 @@ async fn ingest_one_table_to_duckdb_file(
     let out_str = out_file
         .to_str()
         .unwrap_or_else(|| panic!("non-utf8 output path: {}", out_file.display()));
-    let guard = conn.lock().unwrap();
-    persist_selected_tables_to_file(&*guard, out_str, vec![table.to_string()])
+    persist_selected_tables_to_file(conn.clone(), out_str, vec![table.to_string()])
         .unwrap_or_else(|e| panic!("persist_selected_tables_to_file({table}) should work: {e:?}"));
 
     assert!(
@@ -423,11 +421,12 @@ async fn duck_createdatasets_usbanks_builds_from_duckdb_artifacts() {
     // Prereq: run `duck_bank_regulatory_dump_each_table_to_duckdb_files` first.
     let bank_out_dir = bank_duckdb_artifacts_dir("dump_each_table");
 
+    let bhck_legacy = bank_out_dir.join("bhck_legacy.duckdb");
     let bhck_other = bank_out_dir.join("bhck_other.duckdb");
     let bhck_series1 = bank_out_dir.join("bhck_series1.duckdb");
     let bhck_series2 = bank_out_dir.join("bhck_series2.duckdb");
 
-    for p in [&bhck_other, &bhck_series1, &bhck_series2] {
+    for p in [&bhck_legacy, &bhck_other, &bhck_series1, &bhck_series2] {
         if !p.exists() {
             eprintln!(
                 "DuckDB file not found at {} — skipping test (run dump test first)",
@@ -444,6 +443,9 @@ async fn duck_createdatasets_usbanks_builds_from_duckdb_artifacts() {
     let fundamentals_db = fundamental_ds_from_db_files(
         "35GB",
         14,
+        //bhck_legacy
+        //    .to_str()
+        //    .unwrap_or_else(|| panic!("non-utf8 path: {}", bhck_legacy.display())),
         bhck_other
             .to_str()
             .unwrap_or_else(|| panic!("non-utf8 path: {}", bhck_other.display())),
@@ -482,8 +484,10 @@ async fn duck_createdatasets_usbanks_builds_from_duckdb_artifacts() {
     let bhck_crsp_link = bank_crsp_dir.join("bhck_crsp_link.duckdb");
     let us_crsp_mthly = bank_crsp_dir.join("us_crsp_mthly.duckdb");
     let us_crsp_dly = bank_crsp_dir.join("us_crsp_dly.duckdb");
+    let ff_mthly = bank_crsp_dir.join("fama_french_monthly.duckdb");
+    let ff_dly = bank_crsp_dir.join("fama_french_daily.duckdb");
 
-    if bhck_crsp_link.exists() && us_crsp_mthly.exists() {
+    if bhck_crsp_link.exists() && us_crsp_mthly.exists() && ff_mthly.exists() {
         let out = mthly_securities_ds_from_db_files(
             "35GB",
             14,
@@ -493,6 +497,9 @@ async fn duck_createdatasets_usbanks_builds_from_duckdb_artifacts() {
             us_crsp_mthly
                 .to_str()
                 .unwrap_or_else(|| panic!("non-utf8 path: {}", us_crsp_mthly.display())),
+            ff_mthly
+                .to_str()
+                .unwrap_or_else(|| panic!("non-utf8 path: {}", ff_mthly.display())),
             out_dir.clone(),
         )
         .await
@@ -500,7 +507,7 @@ async fn duck_createdatasets_usbanks_builds_from_duckdb_artifacts() {
         assert!(out.exists(), "expected output db file {}", out.display());
     }
 
-    if bhck_crsp_link.exists() && us_crsp_dly.exists() {
+    if bhck_crsp_link.exists() && us_crsp_dly.exists() && ff_dly.exists() {
         let out = dly_securities_ds_from_db_files(
             "35GB",
             14,
@@ -510,6 +517,9 @@ async fn duck_createdatasets_usbanks_builds_from_duckdb_artifacts() {
             us_crsp_dly
                 .to_str()
                 .unwrap_or_else(|| panic!("non-utf8 path: {}", us_crsp_dly.display())),
+            ff_dly
+                .to_str()
+                .unwrap_or_else(|| panic!("non-utf8 path: {}", ff_dly.display())),
             out_dir,
         )
         .await

@@ -1,6 +1,7 @@
 use super::*;
 use duckdb::{Config, Connection, Result};
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 /// Start and return a new in-memory SurrealDB connection and apply base schema.
 pub async fn start_duck_db(
     max_mem: &str,
@@ -92,8 +93,17 @@ pub enum DbType {
     GlobalEquities,
     GlobalEquitiesMonthly,
     EquityFactorsMonthly,
+    FamaFrenDly,
+    FamaFrenMthly,
     GlobalFundQtrly,
     WdiWide,
+    AnnComp,
+    DefComp,
+    LtAwdTab,
+    OutstAwrd,
+    Pension,
+    PlanBaseAwrd,
+    StGrtTab,
     BhckCrspLink,
     BhckLegacy1,
     BhckOther1,
@@ -149,8 +159,71 @@ impl DbType {
                 )
                 .await
             }
+            DbType::FamaFrenDly => {
+                crate::finance_data_structs::cross_factors::FamaFrenDly::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::FamaFrenMthly => {
+                crate::finance_data_structs::cross_factors::FamaFrenMthly::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
             DbType::GlobalFundQtrly => {
                 crate::finance_data_structs::global_fundamentals_compustat::GlobalFundQtrly::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::AnnComp => {
+                crate::finance_data_structs::execucomp::AnnComp::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::DefComp => {
+                crate::finance_data_structs::execucomp::DefComp::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::LtAwdTab => {
+                crate::finance_data_structs::execucomp::LtAwdTab::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::OutstAwrd => {
+                crate::finance_data_structs::execucomp::OutstAwrd::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::Pension => {
+                crate::finance_data_structs::execucomp::Pension::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::PlanBaseAwrd => {
+                crate::finance_data_structs::execucomp::PlanBaseAwrd::duck_from_parquet(
+                    conn,
+                    parquet_path.to_string(),
+                )
+                .await
+            }
+            DbType::StGrtTab => {
+                crate::finance_data_structs::execucomp::StGrtTab::duck_from_parquet(
                     conn,
                     parquet_path.to_string(),
                 )
@@ -198,7 +271,7 @@ impl DbType {
 /// Persist the current in-memory DB to a DuckDB file.
 /// If `path` exists, this removes it first (DuckDB expects a new file).
 pub fn persist_in_memory_to_file(
-    conn: &Connection,
+    conn: Arc<Mutex<Connection>>,
     path: &str,
 ) -> Result<(), crate::error::AppError> {
     // DuckDB's ATTACH wants the target file to not exist
@@ -216,7 +289,8 @@ pub fn persist_in_memory_to_file(
         path = path_sql
     );
 
-    conn.execute_batch(&sql)?;
+    let guard = conn.lock()?;
+    guard.execute_batch(&sql)?;
     Ok(())
 }
 
@@ -227,7 +301,7 @@ pub fn persist_in_memory_to_file(
 /// - Table names may be `"table"` or `"schema.table"`. Other formats are rejected.
 /// - Tables are copied with `CREATE OR REPLACE TABLE ... AS SELECT * FROM ...`.
 pub fn persist_selected_tables_to_file(
-    conn: &Connection,
+    conn: Arc<Mutex<Connection>>,
     path: &str,
     tables: Vec<String>,
 ) -> Result<(), crate::error::AppError> {
@@ -239,28 +313,29 @@ pub fn persist_selected_tables_to_file(
         std::fs::remove_file(path)?;
     }
     let path_sql = path.replace('\'', "''");
+    let guard = conn.lock()?;
     let res: Result<(), crate::error::AppError> = (|| {
-        conn.execute_batch(&format!("ATTACH '{}' AS diskdb;", path_sql))?;
-        conn.execute_batch("BEGIN TRANSACTION;")?;
+        guard.execute_batch(&format!("ATTACH '{}' AS diskdb;", path_sql))?;
+        guard.execute_batch("BEGIN TRANSACTION;")?;
         for table in tables {
-            conn.execute_batch(&format!(
+            guard.execute_batch(&format!(
                 "CREATE OR REPLACE TABLE {dst} AS SELECT * FROM {src};",
                 dst = format!("diskdb.{}", table),
                 src = table
             ))?;
         }
-        conn.execute_batch("COMMIT;")?;
+        guard.execute_batch("COMMIT;")?;
         Ok(())
     })();
 
     match res {
         Ok(()) => {
-            conn.execute_batch("DETACH diskdb;")?;
+            guard.execute_batch("DETACH diskdb;")?;
             Ok(())
         }
         Err(e) => {
-            let _ = conn.execute_batch("ROLLBACK;");
-            let _ = conn.execute_batch("DETACH diskdb;");
+            let _ = guard.execute_batch("ROLLBACK;");
+            let _ = guard.execute_batch("DETACH diskdb;");
             Err(e)
         }
     }

@@ -452,7 +452,7 @@ impl GlobalRets {
                     .column(date_idx)
                     .as_any()
                     .downcast_ref::<Date32Array>();
-                let mut get_f64 = |name: &str, i: usize| -> Option<f64> {
+                let get_f64 = |name: &str, i: usize| -> Option<f64> {
                     let idx = schema.index_of(name).unwrap();
                     let col = batch.column(idx);
                     if let Some(arr) = col.as_any().downcast_ref::<Float64Array>() {

@@ -1,13 +1,16 @@
 pub mod bank_regulatory;
 pub mod compustat;
+pub mod cross_factors;
 pub mod crsp;
 pub mod equity_factors;
+pub mod execucomp;
 pub mod global_equities;
 pub mod global_fundamentals_compustat;
 pub mod usindexes;
 pub mod wdi;
 pub mod world_indices;
 use crate::error::AppError;
+use arrow_array::RecordBatch;
 use duckdb::{params, Connection, OptionalExt};
 use futures::{StreamExt, TryStreamExt};
 use itertools::Itertools; // <-- brings .chunks() into scope
@@ -22,7 +25,47 @@ use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 use uuid::Uuid;
 
-/// Trait: provides a schema and helpers to build a DataFrame from `polars::Row`s.
+fn polars_df_from_arrow_record_batch(batch: &RecordBatch) -> Result<DataFrame, AppError> {
+    if batch.num_columns() == 0 {
+        return Ok(DataFrame::empty());
+    }
+
+    let schema = batch.schema();
+    let mut cols = Vec::with_capacity(batch.num_columns());
+    for (i, field) in schema.fields().iter().enumerate() {
+        let name: PlSmallStr = field.name().as_str().into();
+        let array = batch.column(i).clone();
+        let data = array.to_data();
+
+        let (ffi_array, ffi_schema) = arrow_array::ffi::to_ffi(&data)?;
+
+        // Safety: Arrow's C Data Interface structs are ABI-compatible; we move ownership
+        // from arrow-rs' `FFI_*` to polars-arrow's equivalents to import without copying.
+        let pl_array: polars_arrow::ffi::ArrowArray = unsafe { std::mem::transmute(ffi_array) };
+        let pl_schema: polars_arrow::ffi::ArrowSchema = unsafe { std::mem::transmute(ffi_schema) };
+
+        let dtype = unsafe { polars_arrow::ffi::import_field_from_c(&pl_schema) }?
+            .dtype()
+            .clone();
+        let pl_arr = unsafe { polars_arrow::ffi::import_array_from_c(pl_array, dtype) }?;
+
+        let s = Series::from_arrow(name, pl_arr)?;
+        cols.push(Column::from(s));
+    }
+    Ok(DataFrame::new(cols)?)
+}
+
+pub async fn get_polars_df_from_sql(
+    conn: &Connection,
+    sql_str: &str,
+) -> Result<Vec<DataFrame>, AppError> {
+    let mut stmt = conn.prepare(sql_str)?;
+    let arrow = stmt.query_arrow([])?;
+    arrow
+        .map(|batch| polars_df_from_arrow_record_batch(&batch))
+        .collect()
+}
+
 pub trait ToPolars {
     /// Schema describing the target DataFrame.
     fn schema() -> Schema;
@@ -32,11 +75,17 @@ pub trait ToPolars {
         DataFrame::from_rows_and_schema(rows, &Self::schema())
     }
 
-    /// Read a Parquet file into a `DataFrame` using Polars `scan_parquet` (lazy) + `collect`.
-    ///
-    /// Designed to accept the `PathBuf` returned by `read_range_to_parquet`.
-    /// If calling from within a Tokio runtime (e.g. `#[tokio::test]`), prefer wrapping the call in
-    /// `tokio::task::spawn_blocking` to avoid nested-runtime panics from Polars internals.
+    fn get_full_polars_df(conn: &Connection) -> Result<Vec<DataFrame>, AppError>
+    where
+        Self: DuckCrudModel,
+    {
+        let sql = format!("SELECT * FROM {}", <Self as DuckCrudModel>::table());
+        let mut stmt = conn.prepare(sql.as_str())?;
+        let arrow = stmt.query_arrow([])?;
+        arrow
+            .map(|batch| polars_df_from_arrow_record_batch(&batch))
+            .collect()
+    }
     fn df_from_parquet_scan<P: AsRef<Path>>(parquet_path: P) -> Result<DataFrame, AppError> {
         Self::df_from_parquet_scan_with_args(parquet_path, ScanArgsParquet::default())
     }
@@ -273,12 +322,7 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
             let conn_guard = conn.lock().expect("duckdb connection mutex poisoned");
             Self::ensure_table(&conn_guard)?;
             let esc_path = path.replace('\'', "''");
-            // Count rows, preferring Parquet metadata (avoids a full file scan) with a
-            // compatibility fallback to `read_parquet()` for older/newer DuckDB schemas.
             let total: i64 = {
-                // Newer DuckDB versions expose row counts at the row-group level.
-                // Some versions expose `parquet_metadata()` at the column-chunk level,
-                // so dedupe by `row_group_id` to avoid overcounting.
                 let meta_sql = format!(
                     "SELECT COALESCE(SUM(row_group_num_rows), 0)
                      FROM (
@@ -309,6 +353,78 @@ pub trait DuckCrudModel: Sized + Clone + Serialize + for<'de> Deserialize<'de> {
                 conn_guard.execute(&sql, [])?;
                 Ok(())
             })();
+            match res {
+                Ok(()) => {
+                    conn_guard.execute("COMMIT", [])?;
+                    Ok::<usize, AppError>(total as usize)
+                }
+                Err(e) => {
+                    let _ = conn_guard.execute("ROLLBACK", []);
+                    Err(e)
+                }
+            }
+        })
+        .await?
+    }
+
+    /// Append a Parquet file into an existing DuckDB table (or create the table if missing).
+    ///
+    /// Notes:
+    /// - This is a physical append (`INSERT INTO ... SELECT * FROM read_parquet(...)`).
+    /// - It does not deduplicate or "upsert" by key.
+    /// - Schema must match across files (otherwise DuckDB will error).
+    async fn append_from_parquet_one_file(
+        conn: Arc<Mutex<Connection>>,
+        parquet_path: impl AsRef<Path>,
+        table_opt: Option<String>,
+    ) -> Result<usize, AppError> {
+        let path = parquet_path.as_ref().to_string_lossy().to_string();
+        let table_name = table_opt.unwrap_or_else(|| Self::table().to_string());
+
+        tokio::task::spawn_blocking(move || {
+            let conn_guard = conn.lock().map_err(AppError::from)?;
+
+            let esc_path = path.replace('\'', "''");
+            let total: i64 = {
+                let meta_sql = format!(
+                    "SELECT COALESCE(SUM(row_group_num_rows), 0)
+                     FROM (
+                        SELECT DISTINCT row_group_id, row_group_num_rows
+                        FROM parquet_metadata('{}')
+                     ) t",
+                    esc_path
+                );
+                match conn_guard.query_row(&meta_sql, [], |r| r.get::<_, i64>(0)) {
+                    Ok(v) => v,
+                    Err(_) => {
+                        let count_sql =
+                            format!("SELECT count(*) FROM read_parquet('{}')", esc_path);
+                        conn_guard.query_row(&count_sql, [], |r| r.get::<_, i64>(0))?
+                    }
+                }
+            };
+
+            conn_guard.execute("BEGIN TRANSACTION", [])?;
+            let res = (|| -> Result<(), AppError> {
+                // Create table if it doesn't exist, using the Parquet schema.
+                conn_guard.execute(
+                    &format!(
+                        "CREATE TABLE IF NOT EXISTS {} AS SELECT * FROM read_parquet('{}') LIMIT 0;",
+                        table_name, esc_path
+                    ),
+                    [],
+                )?;
+                // Append rows from this file.
+                conn_guard.execute(
+                    &format!(
+                        "INSERT INTO {} SELECT * FROM read_parquet('{}');",
+                        table_name, esc_path
+                    ),
+                    [],
+                )?;
+                Ok(())
+            })();
+
             match res {
                 Ok(()) => {
                     conn_guard.execute("COMMIT", [])?;

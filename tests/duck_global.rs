@@ -220,8 +220,7 @@ async fn duck_persist_and_reopen_from_file() {
         .join("duck_roundtrip.db")
         .to_string_lossy()
         .to_string();
-    persist_in_memory_to_file(&conn.lock().unwrap(), &db_path)
-        .expect("persist in-memory db to file");
+    persist_in_memory_to_file(conn.clone(), &db_path).expect("persist in-memory db to file");
     // Reopen and validate content
     let reopened = open_duck_db_from_file(&db_path, "4GB", 14)
         .await

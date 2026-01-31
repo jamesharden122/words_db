@@ -1,35 +1,162 @@
 use crate::error::AppError;
-use crate::instantiatedb::duckdbinst::{
-    attach_duck_db_from_file, persist_selected_tables_to_file, start_duck_db,
+use crate::finance_data_structs::{
+    bank_regulatory::{BhckCrspLink, BhckLegacy1, BhckOther1, BhckSeries1, BhckSeries2},
+    cross_factors::{FamaFrenDly, FamaFrenMthly},
+    crsp::{UsCrspDly, UsCrspMthly},
+    DuckCrudModel,
 };
-use std::path::PathBuf;
+use crate::instantiatedb::duckdbinst::{
+    attach_duck_db_from_file, detach_duck_db, persist_selected_tables_to_file, start_duck_db,
+};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
+pub async fn create_fundamental_duckdb_files(
+    bhck_other1: Option<Vec<String>>,
+    bhck_series1: Option<Vec<String>>,
+    bhck_series2: Option<Vec<String>>,
+    bhck_legacy: Option<Vec<String>>,
+    out_dir: &Path,
+) -> Result<(), AppError> {
+    if let Some(p) = bhck_other1 {
+        match p.len() {
+            0 => {}
+            1 => super::parquet_to_duckdb::<BhckOther1>(p[0].as_str(), "30GB", 8, out_dir).await?,
+            _ => super::batch_parquet_to_duckdb::<BhckOther1>(p, "20GB", 8, out_dir).await?,
+        }
+    }
+    if let Some(p) = bhck_series1 {
+        match p.len() {
+            0 => {}
+            1 => super::parquet_to_duckdb::<BhckSeries1>(p[0].as_str(), "30GB", 8, out_dir).await?,
+            _ => super::batch_parquet_to_duckdb::<BhckSeries1>(p, "20GB", 8, out_dir).await?,
+        }
+    }
+    if let Some(p) = bhck_series2 {
+        match p.len() {
+            0 => {}
+            1 => super::parquet_to_duckdb::<BhckSeries2>(p[0].as_str(), "30GB", 8, out_dir).await?,
+            _ => super::batch_parquet_to_duckdb::<BhckSeries2>(p, "20GB", 8, out_dir).await?,
+        }
+    }
+    if let Some(p) = bhck_legacy {
+        match p.len() {
+            0 => {}
+            1 => super::parquet_to_duckdb::<BhckLegacy1>(p[0].as_str(), "40GB", 8, out_dir).await?,
+            _ => super::batch_parquet_to_duckdb::<BhckLegacy1>(p, "40GB", 8, out_dir).await?,
+        }
+    }
+    Ok(())
+}
+
+pub async fn create_securities_duckdb_files(
+    bhck_crsp: Option<Vec<String>>,
+    crsp_mthly: Option<Vec<String>>,
+    ff_mthly: Option<Vec<String>>,
+    crsp_dly: Option<Vec<String>>,
+    ff_dly: Option<Vec<String>>,
+    out_dir: &Path,
+) -> Result<(), AppError> {
+    if let Some(p) = bhck_crsp {
+        match p.len() {
+            0 => {}
+            1 => {
+                super::parquet_to_duckdb::<BhckCrspLink>(p[0].as_str(), "20GB", 8, out_dir).await?
+            }
+            _ => super::batch_parquet_to_duckdb::<BhckCrspLink>(p, "20GB", 8, out_dir).await?,
+        }
+    }
+    if let Some(p) = crsp_mthly {
+        match p.len() {
+            0 => {}
+            1 => super::parquet_to_duckdb::<UsCrspMthly>(p[0].as_str(), "20GB", 8, out_dir).await?,
+            _ => super::batch_parquet_to_duckdb::<UsCrspMthly>(p, "20GB", 8, out_dir).await?,
+        }
+    }
+    if let Some(p) = ff_mthly {
+        match p.len() {
+            0 => {}
+            1 => {
+                super::parquet_to_duckdb::<FamaFrenMthly>(p[0].as_str(), "20GB", 8, out_dir).await?
+            }
+            _ => super::batch_parquet_to_duckdb::<FamaFrenMthly>(p, "20GB", 8, out_dir).await?,
+        }
+    }
+    if let Some(p) = crsp_dly {
+        match p.len() {
+            0 => {}
+            1 => super::parquet_to_duckdb::<UsCrspDly>(p[0].as_str(), "20GB", 8, out_dir).await?,
+            _ => super::batch_parquet_to_duckdb::<UsCrspDly>(p, "20GB", 8, out_dir).await?,
+        }
+    }
+    if let Some(p) = ff_dly {
+        match p.len() {
+            0 => {}
+            1 => super::parquet_to_duckdb::<FamaFrenDly>(p[0].as_str(), "20GB", 8, out_dir).await?,
+            _ => super::batch_parquet_to_duckdb::<FamaFrenDly>(p, "20GB", 8, out_dir).await?,
+        }
+    }
+    Ok(())
+}
 pub async fn fundamental_ds_from_db_files(
     max_mem: &str,
     thread_count: i64,
+    //bhck_legacy: &str,
     bhck_other1: &str,
     bhck_series1: &str,
     bhck_series2: &str,
     out_path: PathBuf,
 ) -> std::result::Result<PathBuf, AppError> {
     let conn = start_duck_db(max_mem, thread_count).await?;
+    std::fs::create_dir_all(&out_path)?;
+
+    // Allow large joins to spill to disk instead of hard-failing under the memory limit.
+    // Also disable insertion-order preservation, which can increase memory usage.
+    let duckdb_tmp_dir = out_path.join("duckdb_tmp");
+    std::fs::create_dir_all(&duckdb_tmp_dir)?;
+    let duckdb_tmp_dir_str = duckdb_tmp_dir.to_str().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("temp path is not valid UTF-8: {}", duckdb_tmp_dir.display()),
+        )
+    })?;
+    let duckdb_tmp_dir_sql = duckdb_tmp_dir_str.replace('\'', "''");
+    conn.execute_batch(&format!(
+        "PRAGMA temp_directory='{}';\nSET preserve_insertion_order=false;\n",
+        duckdb_tmp_dir_sql
+    ))?;
 
     // Ensure all ATTACH statements complete before building the join table.
-    attach_duck_db_from_file(&conn, bhck_other1, "bhck_other", true).await?;
-    attach_duck_db_from_file(&conn, bhck_series1, "bhck_series1", true).await?;
-    attach_duck_db_from_file(&conn, bhck_series2, "bhck_series2", true).await?;
+    //attach_duck_db_from_file(&conn, bhck_legacy, BhckLegacy1::table(), true).await?;
+    attach_duck_db_from_file(&conn, bhck_other1, BhckOther1::table(), true).await?;
+    attach_duck_db_from_file(&conn, bhck_series1, BhckSeries1::table(), true).await?;
+    attach_duck_db_from_file(&conn, bhck_series2, BhckSeries2::table(), true).await?;
+    println!("Attach the bhck data.");
+    // Materialize the join in stages so DuckDB can release join working memory between steps.
     conn.execute_batch(
         r#"
-    BEGIN;
-    CREATE OR REPLACE TABLE bank_fundamentals AS
+    CREATE TEMP TABLE bank_fundamentals_stage AS
     SELECT *
     FROM bhck_series1.bhck_series1
-    FULL OUTER JOIN bhck_series2.bhck_series2 USING (rssd9999, rssd9001)
-    FULL OUTER JOIN bhck_other.bhck_other USING (rssd9999, rssd9001);
-    COMMIT;
+    FULL OUTER JOIN bhck_series2.bhck_series2 USING (rssd9999, rssd9001);
     "#,
     )?;
-    std::fs::create_dir_all(&out_path)?;
+    println!("Executed the bhck series merge.");
+    detach_duck_db(&conn, BhckSeries1::table())?;
+    detach_duck_db(&conn, BhckSeries2::table())?;
+    println!("Detach the bhck series.");
+    conn.execute_batch(
+        r#"
+    CREATE OR REPLACE TABLE bank_fundamentals AS
+    SELECT *
+    FROM bank_fundamentals_stage
+    FULL OUTER JOIN bhck_other.bhck_other USING (rssd9999, rssd9001);
+    DROP TABLE bank_fundamentals_stage;
+    "#,
+    )?;
+    println!("Executed the bhck other merge.");
+    detach_duck_db(&conn, BhckOther1::table())?;
+    println!("Detach the bhck other.");
     let out_file = out_path.join("bank_fundamentals.duckdb");
     let out_file_str = out_file.to_str().ok_or_else(|| {
         std::io::Error::new(
@@ -37,8 +164,9 @@ pub async fn fundamental_ds_from_db_files(
             format!("output path is not valid UTF-8: {}", out_file.display()),
         )
     })?;
-    persist_selected_tables_to_file(&conn, out_file_str, vec!["bank_fundamentals".to_string()])?;
-
+    let conn = Arc::new(Mutex::new(conn));
+    persist_selected_tables_to_file(conn, out_file_str, vec!["bank_fundamentals".to_string()])?;
+    println!("The Database Finished Merging");
     Ok(out_file)
 }
 
@@ -47,18 +175,24 @@ pub async fn mthly_securities_ds_from_db_files(
     thread_count: i64,
     bhck_crsp: &str,
     crsp_mthly: &str,
+    ff_mthly: &str,
     out_path: PathBuf,
 ) -> Result<PathBuf, AppError> {
     let conn = start_duck_db(max_mem, thread_count).await?;
-    attach_duck_db_from_file(&conn, bhck_crsp, "bhck_crsp_link", true).await?;
-    attach_duck_db_from_file(&conn, crsp_mthly, "us_crsp_mthly", true).await?;
+    attach_duck_db_from_file(&conn, bhck_crsp, BhckCrspLink::table(), true).await?;
+    attach_duck_db_from_file(&conn, crsp_mthly, UsCrspMthly::table(), true).await?;
+    attach_duck_db_from_file(&conn, ff_mthly, FamaFrenMthly::table(), true).await?;
     conn.execute_batch(
         r#"
     BEGIN;
     CREATE OR REPLACE TABLE bank_securities_mthly AS
     SELECT *
     FROM bhck_crsp_link.bhck_crsp_link
-    FULL OUTER JOIN us_crsp_mthly.us_crsp_mthly USING (permco);
+    LEFT JOIN us_crsp_mthly.us_crsp_mthly USING (permco);
+    SELECT *
+    FROM bank_securities_mthly
+    LEFT JOIN fama_french_monthly.fama_french_monthly  ON 
+    CAST(bank_securities_mthly.bank_securities_mthly.date AS DATE) = CAST(fama_french_monthly.fama_french_monthly.dateff AS DATE);
     COMMIT;
     "#,
     )?;
@@ -70,8 +204,9 @@ pub async fn mthly_securities_ds_from_db_files(
             format!("output path is not valid UTF-8: {}", out_file.display()),
         )
     })?;
+    let conn = Arc::new(Mutex::new(conn));
     persist_selected_tables_to_file(
-        &conn,
+        conn,
         out_file_str,
         vec!["bank_securities_mthly".to_string()],
     )?;
@@ -83,18 +218,24 @@ pub async fn dly_securities_ds_from_db_files(
     thread_count: i64,
     bhck_crsp: &str,
     crsp_dly: &str,
+    ff_dly: &str,
     out_path: PathBuf,
 ) -> Result<PathBuf, AppError> {
     let conn = start_duck_db(max_mem, thread_count).await?;
-    attach_duck_db_from_file(&conn, bhck_crsp, "bhck_crsp_link", true).await?;
-    attach_duck_db_from_file(&conn, crsp_dly, "us_crsp_dly", true).await?;
+    attach_duck_db_from_file(&conn, bhck_crsp, BhckCrspLink::table(), true).await?;
+    attach_duck_db_from_file(&conn, crsp_dly, UsCrspDly::table(), true).await?;
+    attach_duck_db_from_file(&conn, ff_dly, FamaFrenDly::table(), true).await?;
+
     conn.execute_batch(
         r#"
     BEGIN;
     CREATE OR REPLACE TABLE bank_securities_dly AS
     SELECT *
     FROM bhck_crsp_link.bhck_crsp_link
-    FULL OUTER JOIN us_crsp_dly.us_crsp_dly USING (permco);
+    LEFT JOIN us_crsp_dly.us_crsp_dly USING (permco);
+    SELECT *
+    FROM bank_securities_dly
+    LEFT JOIN fama_french_daily.fama_french_daily USING (date);
     COMMIT;
     "#,
     )?;
@@ -106,6 +247,7 @@ pub async fn dly_securities_ds_from_db_files(
             format!("output path is not valid UTF-8: {}", out_file.display()),
         )
     })?;
-    persist_selected_tables_to_file(&conn, out_file_str, vec!["bank_securities_dly".to_string()])?;
+    let conn = Arc::new(Mutex::new(conn));
+    persist_selected_tables_to_file(conn, out_file_str, vec!["bank_securities_dly".to_string()])?;
     Ok(out_file)
 }
