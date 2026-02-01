@@ -11,6 +11,39 @@ use crate::instantiatedb::duckdbinst::{
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+pub struct BankFundPaths {
+    pub bhck_other1: Option<Vec<String>>,
+    pub bhck_series1: Option<Vec<String>>,
+    pub bhck_series2: Option<Vec<String>>,
+    pub bhck_legacy: Option<Vec<String>>,
+}
+
+pub struct BankCrspPaths {
+    pub bhck_crsp: Option<Vec<String>>,
+    pub crsp_mthly: Option<Vec<String>>,
+    pub ff_mthly: Option<Vec<String>>,
+    pub crsp_dly: Option<Vec<String>>,
+    pub ff_dly: Option<Vec<String>>,
+}
+
+pub struct BankCrspDly {
+    pub bhck_crsp: String,
+    pub crsp_dly: String,
+    pub ff_dly: String,
+}
+
+pub struct BankCrspMthly {
+    pub bhck_crsp: String,
+    pub crsp_mthly: String,
+    pub ff_mthly: String,
+}
+
+pub struct BankFund {
+    pub bhck_legacy: String,
+    pub bhck_other1: String,
+    pub bhck_series1: String,
+    pub bhck_series2: String,
+}
 pub async fn create_fundamental_duckdb_files(
     bhck_other1: Option<Vec<String>>,
     bhck_series1: Option<Vec<String>>,
@@ -98,10 +131,11 @@ pub async fn create_securities_duckdb_files(
     }
     Ok(())
 }
+
 pub async fn fundamental_ds_from_db_files(
     max_mem: &str,
     thread_count: i64,
-    //bhck_legacy: &str,
+    _bhck_legacy: &str,
     bhck_other1: &str,
     bhck_series1: &str,
     bhck_series2: &str,
@@ -240,7 +274,7 @@ pub async fn dly_securities_ds_from_db_files(
     "#,
     )?;
     std::fs::create_dir_all(&out_path)?;
-    let out_file = out_path.join("bank_daily_sec.duckdb");
+    let out_file = out_path.join("bank_securities_dly.duckdb");
     let out_file_str = out_file.to_str().ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidInput,

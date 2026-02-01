@@ -47,6 +47,9 @@ async fn fundamental_ds_from_target_tmp_duckdb_files() {
     let out_db = fundamental_ds_from_db_files(
         "50GB",
         14,
+        // `bhck_legacy` is currently unused by `fundamental_ds_from_db_files` (see underscore
+        // param name), but the API expects it.
+        "",
         //bhck_legacy.to_str().expect("bhck_legacy path is utf-8"),
         bhck_other.to_str().expect("bhck_other path is utf-8"),
         bhck_series1.to_str().expect("bhck_series1 path is utf-8"),

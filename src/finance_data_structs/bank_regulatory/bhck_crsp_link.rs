@@ -25,7 +25,9 @@ impl SurrealCrudModel for BhckCrspLink {
 
     fn id_key(&self) -> Option<String> {
         match (self.rssd9001, self.permco, self.dt_start) {
-            (Some(rssd9001), Some(permco), Some(dt_start)) => Some(format!("{rssd9001}:{permco}:{dt_start}")),
+            (Some(rssd9001), Some(permco), Some(dt_start)) => {
+                Some(format!("{rssd9001}:{permco}:{dt_start}"))
+            }
             _ => None,
         }
     }
@@ -212,4 +214,3 @@ ORDER BY rssd9001, permco, dt_start"#,
         .await?
     }
 }
-

@@ -443,9 +443,9 @@ async fn duck_createdatasets_usbanks_builds_from_duckdb_artifacts() {
     let fundamentals_db = fundamental_ds_from_db_files(
         "35GB",
         14,
-        //bhck_legacy
-        //    .to_str()
-        //    .unwrap_or_else(|| panic!("non-utf8 path: {}", bhck_legacy.display())),
+        bhck_legacy
+            .to_str()
+            .unwrap_or_else(|| panic!("non-utf8 path: {}", bhck_legacy.display())),
         bhck_other
             .to_str()
             .unwrap_or_else(|| panic!("non-utf8 path: {}", bhck_other.display())),
