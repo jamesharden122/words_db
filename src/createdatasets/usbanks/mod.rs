@@ -1,15 +1,22 @@
 use crate::error::AppError;
 use crate::finance_data_structs::{
-    bank_regulatory::{BhckCrspLink, BhckLegacy1, BhckOther1, BhckSeries1, BhckSeries2},
+    bank_regulatory::{BhckCrspLink, BhckLegacy1, BhckOther1, BhckSeries1, BhckSeries2,FullBankData},
     cross_factors::{FamaFrenDly, FamaFrenMthly},
     crsp::{UsCrspDly, UsCrspMthly},
     DuckCrudModel,
+    get_polars_df_from_sql,
 };
 use crate::instantiatedb::duckdbinst::{
-    attach_duck_db_from_file, detach_duck_db, persist_selected_tables_to_file, start_duck_db,
+    attach_duck_db_from_file, detach_duck_db, persist_selected_tables_to_file, start_duck_db, open_duck_db_from_file,
 };
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+
+#[cfg(feature = "server")]
+use crate::instantiatedb::polars_utils::{load_cache, save_cache};
+
+#[cfg(feature = "server")]
+use polars::prelude::DataFrame;
 
 pub struct BankFundPaths {
     pub bhck_other1: Option<Vec<String>>,
@@ -44,6 +51,74 @@ pub struct BankFund {
     pub bhck_series1: String,
     pub bhck_series2: String,
 }
+
+#[cfg(feature = "server")]
+pub async fn full_bank_ds(
+    parquet_path: Option<&str>,
+    db_dir: Option<&str>,
+    cache_file: impl AsRef<std::path::Path>,
+    max_mem: Option<&str>,
+    thread_count: Option<i64>,
+) -> Result<DataFrame, AppError> {
+    let cache_file = cache_file.as_ref();
+    if cache_file.exists() {
+        return Ok(load_cache(cache_file)?);
+    }
+
+    let db_dir = db_dir.ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "db_dir is required when cache miss")
+    })?;
+    let max_mem = max_mem.unwrap_or("30GB");
+    let thread_count = thread_count.unwrap_or(8);
+
+    let table = <FullBankData as DuckCrudModel>::table();
+    let db_dir_path = std::path::Path::new(db_dir);
+    let db_path = db_dir_path.join(format!("{table}.duckdb"));
+
+    if !db_path.exists() {
+        let parquet_path = parquet_path.ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "duckdb file missing and parquet_path not provided",
+            )
+        })?;
+        std::fs::create_dir_all(db_dir_path)?;
+        crate::createdatasets::parquet_to_duckdb::<FullBankData>(
+            parquet_path,
+            max_mem,
+            thread_count,
+            db_dir_path,
+        )
+        .await?;
+    }
+
+    let db_path_str = db_path.to_str().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("db_path is not valid utf-8: {}", db_path.display()),
+        )
+    })?;
+    let conn = open_duck_db_from_file(db_path_str, max_mem, thread_count).await?;
+
+    let sql = format!("SELECT * FROM {table}");
+    let mut chunks = get_polars_df_from_sql(&conn, &sql).await?;
+    if chunks.is_empty() {
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "empty query result from duckdb").into());
+    }
+
+    let mut df = chunks.remove(0);
+    for c in chunks {
+        df.vstack_mut(&c)?;
+    }
+
+    if let Some(parent) = cache_file.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    save_cache(&df, cache_file)?;
+
+    Ok(df)
+}
+
 pub async fn create_fundamental_duckdb_files(
     bhck_other1: Option<Vec<String>>,
     bhck_series1: Option<Vec<String>>,
@@ -266,9 +341,7 @@ pub async fn dly_securities_ds_from_db_files(
     CREATE OR REPLACE TABLE bank_securities_dly AS
     SELECT *
     FROM bhck_crsp_link.bhck_crsp_link
-    LEFT JOIN us_crsp_dly.us_crsp_dly USING (permco);
-    SELECT *
-    FROM bank_securities_dly
+    LEFT JOIN us_crsp_dly.us_crsp_dly USING (permco)
     LEFT JOIN fama_french_daily.fama_french_daily USING (date);
     COMMIT;
     "#,

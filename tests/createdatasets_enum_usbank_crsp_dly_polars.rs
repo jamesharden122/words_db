@@ -109,7 +109,7 @@ async fn create_and_merge_usbank_crsp_dly_enum_to_polars_df() {
     for c in chunks {
         df.vstack_mut(&c).expect("vstack polars chunks");
     }
-
+    println!("columns: {:?}", df.get_column_names());
     println!("{:?}", df.height());
     println!("{:?}", df.head(Some(30)));
 }

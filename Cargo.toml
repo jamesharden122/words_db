@@ -23,3 +23,7 @@ arrow-array = { version = "56.2.0", features = ["ffi"] }
 [profile.test]
 # Reduce debug info to avoid rustc/LLVM DWARF stack overflows when compiling large integration tests.
 debug = 1
+
+[features]
+default = []
+server = []
